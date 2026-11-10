@@ -1,6 +1,13 @@
 name: WordCraft Hebrew APK
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-wordcraft-hebrew.yml'
+      - 'lib/build-common.sh'
+      - 'lib/wordcraft-hebrew.sh'
   workflow_dispatch:
 
 permissions:
