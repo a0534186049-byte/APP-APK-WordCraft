@@ -155,7 +155,7 @@ fn hebrew_locales_and_saved_preference_work_without_changing_the_document() {
     set_current(he);
     assert!(crate::rtl::on());
     assert_eq!(location("Blank document › Word Count"), "מסמך ריק ‹ ספירת מילים");
-    assert_eq!(isolate("מסמך.docx"), "\\u{2068}מסמך\\u{200E}.docx\\u{2069}");
+    assert_eq!(isolate("מסמך.docx"), "\u{2068}מסמך\u{200E}.docx\u{2069}");
     set_current(Lang::EN);
 
     let mut app = crate::WordApp::new(
