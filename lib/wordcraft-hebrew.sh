@@ -221,6 +221,11 @@ assert 'let s = typed("שלום");' in engine
 print(f"Hebrew catalogs verified: {rows['common.tsv']} shared rows, {rows['wordcraft.tsv']} WordCraft rows.")
 print("Hebrew UI language, Android RTL default and Hebrew typing regression checks are installed.")
 PY
+
+    # Keep the temporary Android source checkout rustfmt-clean. The helper edits only this
+    # disposable checkout; the upstream repository is not modified.
+    (cd "$src" && cargo fmt --all)
+
     echo "  -> embedded the official pinned Hebrew interface catalogs"
     echo "  -> Android WordCraft defaults to Hebrew UI and right-to-left layout"
 }
