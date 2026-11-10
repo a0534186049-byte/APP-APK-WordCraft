@@ -1,0 +1,73 @@
+name: WordCraft Hebrew source tests
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wordcraft-hebrew-source-tests
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Verify Hebrew translation and RTL behavior
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out this Android Builder
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check out the official WordCraft source
+        run: |
+          mkdir -p source
+          git clone --depth 1 --branch main https://github.com/storytold/wordcraft.git source/wordcraft
+
+      - name: Prepare the pinned Hebrew catalogs and RTL patches
+        run: |
+          set -Eeuo pipefail
+          source lib/wordcraft-hebrew.sh
+          prepare_wordcraft_hebrew source/wordcraft "$GITHUB_WORKSPACE"
+          {
+            echo "CRAFT_I18N_DIR=$GITHUB_WORKSPACE/source/craft-i18n"
+            echo "CRAFT_I18N_REQUIRED=1"
+          } >> "$GITHUB_ENV"
+
+      - name: Check Rust formatting
+        working-directory: source/wordcraft
+        run: cargo fmt --all -- --check
+
+      - name: Test Hebrew interface registration and RTL
+        working-directory: source/wordcraft
+        run: cargo test -p wordcraft-ui-egui --lib hebrew_locales_and_saved_preference_work_without_changing_the_document
+
+      - name: Test Hebrew paragraph direction and punctuation
+        working-directory: source/wordcraft
+        run: |
+          cargo test -p wordcraft-engine --lib typing_rtl_letters_into_an_empty_paragraph_makes_it_rtl
+          cargo test -p wordcraft-engine --lib smart_quotes_in_hebrew_use_logical_order
+
+      - name: Test Hebrew DOCX direction and language metadata
+        working-directory: source/wordcraft
+        run: cargo test -p wordcraft-docx --test it hebrew_pieces_say_they_are_hebrew
+
+      - name: Audit untranslated interface text
+        working-directory: source/wordcraft
+        run: cargo xtask i18n-report 2>&1 | tee "$GITHUB_WORKSPACE/hebrew-i18n-audit.txt"
+
+      - name: Save test and translation audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-hebrew-source-tests
+          path: hebrew-i18n-audit.txt
+          if-no-files-found: ignore
+          retention-days: 14
