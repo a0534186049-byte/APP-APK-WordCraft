@@ -168,6 +168,11 @@ fi
 BUILDER_VERSION="0.5.0"
 UPDATE_API_URL="https://api.github.com/repos/MostafaXS1/artcraft-android/releases/latest"
 UPDATE_PAGE_URL="https://github.com/MostafaXS1/artcraft-android/releases/latest"
+if [[ "$APP" == "wordcraft" ]]; then
+    # WordCraft Hebrew is distributed from this repository, not from the upstream suite.
+    UPDATE_API_URL="https://api.github.com/repos/a0534186049-byte/APP-APK-WordCraft/releases/latest"
+    UPDATE_PAGE_URL="https://github.com/a0534186049-byte/APP-APK-WordCraft/releases/tag/wordcraft-hebrew"
+fi
 
 # Absolute: the build later `cd`s into the launcher directory, and cargo-ndk/Gradle paths
 # derived from $ANDROID_DIR must keep resolving from there.
