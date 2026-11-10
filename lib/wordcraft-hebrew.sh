@@ -158,7 +158,7 @@ fn hebrew_locales_and_saved_preference_work_without_changing_the_document() {
         Default::default(),
     );
     let before = serde_json::to_value(&app.session.doc).unwrap();
-    let result = app.run("ui.language", serde_json::json!({"value": "he-IL"})).unwrap();
+    let result = app.run("ui.language", serde_json::json!({"value": "he"})).unwrap();
     assert_eq!(result["effective"], "he");
     assert_eq!(app.ui.language, "he");
     assert_eq!(serde_json::to_value(&app.session.doc).unwrap(), before);
