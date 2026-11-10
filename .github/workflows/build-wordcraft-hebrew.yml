@@ -139,9 +139,9 @@ jobs:
           echo "APK_SIZE=$SIZE" >> "$GITHUB_OUTPUT"
           echo "Verified package com.artcraft.wordcraft, zip integrity and the permanent signing certificate."
 
-      - name: Check Rust formatting for the Hebrew-patched crates
-        working-directory: source/wordcraft
-        run: cargo fmt --package wordcraft-ui-egui --package wordcraft-engine -- --check
+      # Rust formatting is checked in the dedicated source-test workflow immediately after
+      # the Hebrew-only patches. Do not reformat-check the Android-adapted checkout here:
+      # the builder adds generated launcher and vendored platform patches afterwards.
 
       - name: Run Hebrew catalog and RTL regression tests
         working-directory: source/wordcraft
