@@ -1,0 +1,178 @@
+name: WordCraft Hebrew APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wordcraft-hebrew-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build, test and publish WordCraft Hebrew
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+      CARGO_PROFILE_RELEASE_LTO: "thin"
+      CARGO_PROFILE_RELEASE_DEBUG: "false"
+      ARTCRAFT_BUILD_TOOLS_VERSION: "35.0.0"
+
+    steps:
+      - name: Check out this Android Builder
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install image build dependency
+        run: python -m pip install --upgrade pillow
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Configure Java for the Android Builder
+        run: |
+          sudo mkdir -p /opt/jdk
+          sudo ln -sfn "$JAVA_HOME" /opt/jdk/temurin-21
+
+      - name: Set up Rust for Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install cargo-ndk
+        run: |
+          if ! command -v cargo-ndk >/dev/null 2>&1; then
+            mkdir -p "$HOME/.cargo/bin"
+            curl -fsSL https://github.com/bbqsrc/cargo-ndk/releases/download/v4.1.2/cargo-ndk-x86_64-unknown-linux-musl-v4.1.2.tgz |
+              tar -xz --strip-components=1 -C "$HOME/.cargo/bin"
+            chmod +x "$HOME/.cargo/bin/cargo-ndk"*
+          fi
+          cargo ndk -V
+
+      - name: Configure Android SDK and NDK
+        run: |
+          if [ -d "$ANDROID_HOME/ndk/27.2.12479018" ]; then
+            NDK="$ANDROID_HOME/ndk/27.2.12479018"
+          else
+            NDK="$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          fi
+          test -n "$NDK" && test -d "$NDK"
+          {
+            echo "ANDROID_NDK_HOME=$NDK"
+            echo "NDK_HOME=$NDK"
+            echo "ARTCRAFT_BUILD_TOOLS_VERSION=35.0.0"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore the permanent APK signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.WORDCRAFT_SIGNING_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.WORDCRAFT_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_B64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::error::Add the repository secrets WORDCRAFT_SIGNING_KEYSTORE_BASE64 and WORDCRAFT_SIGNING_PASSWORD before building."
+            exit 1
+          fi
+          mkdir -p keys
+          chmod 700 keys
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > keys/artcraft-builder.jks
+          printf '%s' "$KEYSTORE_PASSWORD" > keys/.keystore-password
+          chmod 600 keys/artcraft-builder.jks keys/.keystore-password
+          keytool -list -keystore keys/artcraft-builder.jks -storepass "$KEYSTORE_PASSWORD" -alias artcraftbuilder >/dev/null
+          echo "Permanent signing key is present and readable."
+
+      - name: Build the Hebrew WordCraft APK
+        run: |
+          set -Eeuo pipefail
+          mkdir -p logs output
+          rm -f output/wordcraft-*.apk output/*.tmp
+          set -o pipefail
+          bash build.sh -wordcraft -main 2>&1 | tee logs/wordcraft-hebrew-build.log
+
+      - name: Verify APK, package id and signing certificate
+        id: verify_apk
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          APKS=(output/wordcraft-*.apk)
+          if [[ ${#APKS[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one WordCraft APK, found ${#APKS[@]}."
+            exit 1
+          fi
+          APK="${APKS[0]}"
+          SIZE="$(stat -c%s "$APK")"
+          [[ "$SIZE" -gt 1000000 ]] || { echo "::error::APK is unexpectedly small ($SIZE bytes)."; exit 1; }
+          unzip -tq "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          [[ -x "$AAPT" && -x "$APKSIGNER" ]]
+          "$AAPT" dump badging "$APK" | grep -F "package: name='com.artcraft.wordcraft'"
+          CERT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+          printf '%s\n' "$CERT"
+          printf '%s\n' "$CERT" | grep -Eiq '58:f9:e1:f9:69:dd:dd:2a:61:59:ba:9e:8c:25:10:48:5a:6e:28:f1:ca:4a:eb:2d:23:72:ab:f0:7e:90:ee:1f'
+          mkdir -p release
+          cp "$APK" release/WordCraft-Hebrew.apk
+          echo "APK_SIZE=$SIZE" >> "$GITHUB_OUTPUT"
+          echo "Verified package com.artcraft.wordcraft, zip integrity and the permanent signing certificate."
+
+      - name: Run Hebrew catalog and RTL regression tests
+        working-directory: source/wordcraft
+        env:
+          CRAFT_I18N_DIR: ${{ github.workspace }}/source/craft-i18n
+          CRAFT_I18N_REQUIRED: "1"
+        run: |
+          set -Eeuo pipefail
+          cargo test -p wordcraft-ui-egui --lib hebrew_locales_and_saved_preference_work_without_changing_the_document
+          cargo test -p wordcraft-engine --lib typing_rtl_letters_into_an_empty_paragraph_makes_it_rtl
+          cargo test -p wordcraft-engine --lib smart_quotes_in_hebrew_use_logical_order
+          cargo test -p wordcraft-docx --test it hebrew_pieces_say_they_are_hebrew
+          cargo xtask i18n-report 2>&1 | tee "$GITHUB_WORKSPACE/hebrew-i18n-audit.txt"
+
+      - name: Upload build and translation audit backup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wordcraft-hebrew-build-checks
+          path: |
+            release/WordCraft-Hebrew.apk
+            logs/wordcraft-hebrew-build.log
+            hebrew-i18n-audit.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Create or update the fixed WordCraft Hebrew Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          TAG="wordcraft-hebrew"
+          ASSET="release/WordCraft-Hebrew.apk"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$ASSET" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "WordCraft בעברית — הגרסה העדכנית" \
+              --notes "גרסת WordCraft Android בעברית עם ממשק RTL, תרגום עברי מוטמע ושמירת מסמכים מקומית. כל עדכון מחליף את קובץ ה-APK באותו Release."
+          fi
+
+      - name: Verify the APK is published in Release Assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          URL="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/wordcraft-hebrew" \
+            --jq '.assets[] | select(.name == "WordCraft-Hebrew.apk") | .browser_download_url')"
+          [[ -n "$URL" ]] || { echo "::error::WordCraft-Hebrew.apk was not found in Release Assets."; exit 1; }
+          echo "Verified Release asset: $URL"
+          echo "Direct APK download: $URL"
