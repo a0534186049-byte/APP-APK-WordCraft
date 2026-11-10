@@ -4198,17 +4198,29 @@ UPDATER_DIR="$ANDROID_DIR/java/com/artcraft/updater"
 if [[ -d "$ANDROID_DIR/java" ]]; then
     mkdir -p "$UPDATER_DIR"
     python3 - "$ROOT/templates/android/UpdateCheck.java" "$UPDATER_DIR/UpdateCheck.java" \
-        "$BUILDER_VERSION" "$UPDATE_API_URL" "$UPDATE_PAGE_URL" <<'PY'
+        "$BUILDER_VERSION" "$UPDATE_API_URL" "$UPDATE_PAGE_URL" "$APP" <<'PY'
 from pathlib import Path
 import sys
 
-source, target, version, api_url, page_url = sys.argv[1:6]
+source, target, version, api_url, page_url, app = sys.argv[1:7]
 text = Path(source).read_text()
 text = (
     text.replace("__BUILDER_VERSION__", version)
     .replace("__UPDATE_API_URL__", api_url)
     .replace("__UPDATE_PAGE_URL__", page_url)
 )
+# The Android Builder's update dialog is part of WordCraft's Hebrew UI too. Localize
+# the generated copy only; the shared template remains unchanged for every other app.
+if app == "wordcraft":
+    text = (
+        text.replace('.setTitle("ArtCraft update available")', '.setTitle("עדכון WordCraft זמין")')
+        .replace(
+            '.setMessage("Version " + version + " is available. Download it to update this app.")',
+            '.setMessage("גרסה \\u2068" + version + "\\u2069 זמינה. הורד אותה כדי לעדכן את האפליקציה.")',
+        )
+        .replace('.setPositiveButton("Download"', '.setPositiveButton("הורדה"')
+        .replace('.setNegativeButton("Later"', '.setNegativeButton("אחר כך"')
+    )
 Path(target).write_text(text)
 PY
     echo "  -> installed the update checker (builder version $BUILDER_VERSION)"
