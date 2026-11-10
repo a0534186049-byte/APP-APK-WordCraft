@@ -83,6 +83,7 @@ jobs:
             echo "::error::Add the repository secrets WORDCRAFT_SIGNING_KEYSTORE_BASE64 and WORDCRAFT_SIGNING_PASSWORD before building."
             exit 1
           fi
+          KEYSTORE_PASSWORD="$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '\\r\\n')"
           mkdir -p keys
           chmod 700 keys
           printf '%s' "$KEYSTORE_B64" | base64 --decode > keys/artcraft-builder.jks
