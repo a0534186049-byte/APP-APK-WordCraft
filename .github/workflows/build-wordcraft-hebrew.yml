@@ -127,7 +127,12 @@ jobs:
           "$AAPT" dump badging "$APK" | grep -F "package: name='com.artcraft.wordcraft'"
           CERT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
           printf '%s\n' "$CERT"
-          printf '%s\n' "$CERT" | grep -Eiq '58:f9:e1:f9:69:dd:dd:2a:61:59:ba:9e:8c:25:10:48:5a:6e:28:f1:ca:4a:eb:2d:23:72:ab:f0:7e:90:ee:1f'
+          CERT_SHA256="$(printf '%s\n' "$CERT" | sed -n 's/.*certificate SHA-256 digest: *//p' | head -n 1 | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          EXPECTED_SHA256="58f9e1f969dddd2a6159ba9e8c2510485a6e28f1ca4aeb2d2372abf07e90ee1f"
+          [[ "$CERT_SHA256" == "$EXPECTED_SHA256" ]] || {
+            echo "::error::APK signing certificate mismatch: expected $EXPECTED_SHA256, got $CERT_SHA256."
+            exit 1
+          }
           mkdir -p release
           cp "$APK" release/WordCraft-Hebrew.apk
           echo "APK_SIZE=$SIZE" >> "$GITHUB_OUTPUT"
