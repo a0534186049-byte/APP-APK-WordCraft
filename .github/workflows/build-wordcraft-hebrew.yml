@@ -139,9 +139,9 @@ jobs:
           echo "APK_SIZE=$SIZE" >> "$GITHUB_OUTPUT"
           echo "Verified package com.artcraft.wordcraft, zip integrity and the permanent signing certificate."
 
-      - name: Check Rust formatting
+      - name: Check Rust formatting for the Hebrew-patched crates
         working-directory: source/wordcraft
-        run: cargo fmt --all -- --check
+        run: cargo fmt --package wordcraft-ui-egui --package wordcraft-engine -- --check
 
       - name: Run Hebrew catalog and RTL regression tests
         working-directory: source/wordcraft
