@@ -1,11 +1,6 @@
 name: Build APKs
 
 on:
-  push:
-    branches:
-      - '**'
-    tags:
-      - '**'
   workflow_dispatch:
     inputs:
       mode:
