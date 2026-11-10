@@ -597,6 +597,14 @@ else
     mv "$SRC_TMP" "$SRC"
 fi
 
+# WordCraft's Hebrew Android edition: embed the official, pinned interface catalogs and
+# apply the small Android-only RTL/language patches to this disposable upstream checkout.
+if [[ "$APP" == "wordcraft" ]]; then
+    # shellcheck source=/dev/null
+    source "$ROOT/lib/wordcraft-hebrew.sh"
+    prepare_wordcraft_hebrew "$SRC" "$ROOT"
+fi
+
 # Upstream `main` is normally green, but a regression can sit there for a while (the upstream
 # preset-loader fix landed broken on 2026-10-17 and took its CI red). Each fix-up below is
 # guarded: it edits the checkout only while the broken text is still present, and is a silent
