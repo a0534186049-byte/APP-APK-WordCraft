@@ -15,7 +15,8 @@ permissions:
 
 concurrency:
   group: wordcraft-hebrew-apk
-  cancel-in-progress: false
+  # A newer corrected build must replace stale builds instead of waiting behind them.
+  cancel-in-progress: true
 
 jobs:
   build:
