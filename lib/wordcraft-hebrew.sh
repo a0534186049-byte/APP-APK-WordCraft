@@ -133,8 +133,15 @@ rtl_assert_new = '''    let he = lang("he");
     );'''
 if rtl_assert in test_text:
     test_text = test_text.replace(rtl_assert, rtl_assert_new, 1)
-elif rtl_assert_new not in test_text:
-    raise SystemExit("Could not update the existing RTL language-list assertion.")
+elif not (
+    'let he = lang("he");' in test_text
+    and "assert!(he.rtl());" in test_text
+    and '.eq(["ar", "he"])' in test_text
+    and "Arabic and Hebrew are the right-to-left interface languages" in test_text
+):
+    # rustfmt runs at the end of this helper, so a second invocation sees the same
+    # assertion in formatted layout rather than the exact pre-format replacement text.
+    raise SystemExit("Could not confirm the existing Hebrew RTL language-list assertion.")
 
 new_hebrew_test = r'''
 /// The embedded Hebrew catalog is selectable, translated and mirrored; its saved preference
