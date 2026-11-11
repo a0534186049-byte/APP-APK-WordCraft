@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build-wordcraft-hebrew.yml'
       - 'lib/build-common.sh'
       - 'lib/wordcraft-hebrew.sh'
+      - 'lib/scrolling.sh'
   workflow_dispatch:
 
 permissions:
@@ -132,6 +133,17 @@ jobs:
           rm -f output/wordcraft-*.apk output/*.tmp
           set -o pipefail
           bash build.sh -wordcraft -main 2>&1 | tee logs/wordcraft-hebrew-build.log
+
+      - name: Verify bidirectional Backstage scrolling patch
+        run: |
+          set -Eeuo pipefail
+          FILE="source/wordcraft/crates/ui-egui/src/backstage.rs"
+          grep -F 'egui::ScrollArea::both().auto_shrink([false, true]).show(ui, |ui| {' "$FILE"
+          if grep -F 'egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {' "$FILE"; then
+            echo "::error::The old vertical-only Backstage scroll area is still present."
+            exit 1
+          fi
+          echo "Verified: Backstage content supports horizontal and vertical touch scrolling."
 
       - name: Verify APK, package id and signing certificate
         id: verify_apk
