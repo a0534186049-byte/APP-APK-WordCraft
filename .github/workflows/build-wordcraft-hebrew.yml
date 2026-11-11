@@ -81,6 +81,18 @@ jobs:
             echo "ARTCRAFT_BUILD_TOOLS_VERSION=35.0.0"
           } >> "$GITHUB_ENV"
 
+      - name: Check out and prepare the official WordCraft Hebrew source
+        run: |
+          set -Eeuo pipefail
+          mkdir -p source
+          git clone --depth 1 --branch main https://github.com/storytold/wordcraft.git source/wordcraft
+          source lib/wordcraft-hebrew.sh
+          prepare_wordcraft_hebrew source/wordcraft "$GITHUB_WORKSPACE"
+          {
+            echo "CRAFT_I18N_DIR=$GITHUB_WORKSPACE/source/craft-i18n"
+            echo "CRAFT_I18N_REQUIRED=1"
+          } >> "$GITHUB_ENV"
+
       - name: Run Hebrew catalog and RTL regression tests
         working-directory: source/wordcraft
         env:
