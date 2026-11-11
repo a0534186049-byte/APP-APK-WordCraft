@@ -81,6 +81,19 @@ jobs:
             echo "ARTCRAFT_BUILD_TOOLS_VERSION=35.0.0"
           } >> "$GITHUB_ENV"
 
+      - name: Run Hebrew catalog and RTL regression tests
+        working-directory: source/wordcraft
+        env:
+          CRAFT_I18N_DIR: ${{ github.workspace }}/source/craft-i18n
+          CRAFT_I18N_REQUIRED: "1"
+        run: |
+          set -Eeuo pipefail
+          cargo test -p wordcraft-ui-egui --lib hebrew_locales_and_saved_preference_work_without_changing_the_document
+          cargo test -p wordcraft-engine --lib typing_rtl_letters_into_an_empty_paragraph_makes_it_rtl
+          cargo test -p wordcraft-engine --lib smart_quotes_in_hebrew_use_logical_order
+          cargo test -p wordcraft-docx --test it hebrew_pieces_say_they_are_hebrew
+          cargo xtask i18n-report 2>&1 | tee "$GITHUB_WORKSPACE/hebrew-i18n-audit.txt"
+
       - name: Restore the permanent APK signing key
         env:
           KEYSTORE_B64: ${{ secrets.WORDCRAFT_SIGNING_KEYSTORE_BASE64 }}
@@ -142,19 +155,6 @@ jobs:
       # Rust formatting is checked in the dedicated source-test workflow immediately after
       # the Hebrew-only patches. Do not reformat-check the Android-adapted checkout here:
       # the builder adds generated launcher and vendored platform patches afterwards.
-
-      - name: Run Hebrew catalog and RTL regression tests
-        working-directory: source/wordcraft
-        env:
-          CRAFT_I18N_DIR: ${{ github.workspace }}/source/craft-i18n
-          CRAFT_I18N_REQUIRED: "1"
-        run: |
-          set -Eeuo pipefail
-          cargo test -p wordcraft-ui-egui --lib hebrew_locales_and_saved_preference_work_without_changing_the_document
-          cargo test -p wordcraft-engine --lib typing_rtl_letters_into_an_empty_paragraph_makes_it_rtl
-          cargo test -p wordcraft-engine --lib smart_quotes_in_hebrew_use_logical_order
-          cargo test -p wordcraft-docx --test it hebrew_pieces_say_they_are_hebrew
-          cargo xtask i18n-report 2>&1 | tee "$GITHUB_WORKSPACE/hebrew-i18n-audit.txt"
 
       - name: Upload build and translation audit backup
         if: always()
