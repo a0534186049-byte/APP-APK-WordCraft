@@ -524,7 +524,7 @@ if app == "wordcraft":
     # remain on their existing input paths.
     if fix(
         "crates/ui-egui/src/backstage.rs",
-        "        egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {\\n",
+        "        egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {\n",
         "        egui::ScrollArea::both().auto_shrink([false, true]).show(ui, |ui| {\\n",
     ):
         fixed.append("crates/ui-egui/src/backstage.rs (Backstage pages scroll horizontally and vertically)")
