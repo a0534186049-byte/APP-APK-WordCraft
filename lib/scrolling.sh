@@ -512,6 +512,23 @@ if app == "wordcraft":
     ):
         fixed.append("apps/wordcraft-web/index.html (touch-action: none)")
 
+
+    # Backstage (Home, New, Open and Options) previously exposed only a vertical
+    # ScrollArea. On compact Android players, several pages are wider than the viewport,
+    # leaving their right/left content unreachable. Make this existing outer viewport
+    # bidirectional while preserving its vertical sizing and scroll behavior.
+    #
+    # egui 0.37 already supports touch drag-to-scroll by default (DragScroll::OnTouch).
+    # Keeping the change inside this ScrollArea means we do not convert arbitrary one-finger
+    # drags into global wheel events: canvas text selection and Android edge-back gestures
+    # remain on their existing input paths.
+    if fix(
+        "crates/ui-egui/src/backstage.rs",
+        "        egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {\\n",
+        "        egui::ScrollArea::both().auto_shrink([false, true]).show(ui, |ui| {\\n",
+    ):
+        fixed.append("crates/ui-egui/src/backstage.rs (Backstage pages scroll horizontally and vertically)")
+
 if fixed:
     print(f"  Added two-finger-scroll patches to {title}: {', '.join(fixed)}")
 PY
