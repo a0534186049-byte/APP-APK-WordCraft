@@ -209,11 +209,11 @@ rtl.write_text(rtl_text)
 chrome = src / "crates/ui-egui/src/chrome.rs"
 chrome_text = chrome.read_text()
 compact_marker = "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens."
-compact_guard = """            if not app.has_document() {
+compact_guard = """            if !app.has_document() {
                 return;
             }
             let rtl = crate::rtl::on();"""
-compact_replacement = """            if not app.has_document() {
+compact_replacement = """            if !app.has_document() {
                 return;
             }
 """ + r'''            // WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens.
