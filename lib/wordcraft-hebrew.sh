@@ -204,16 +204,16 @@ rtl_text = rtl_text.replace(
 )
 rtl.write_text(rtl_text)
 
-    # WordCraft's desktop status row has a full zoom slider and optional indicators.
-    # On narrow portrait screens, keep the primary controls visible and move the rest to a menu.
-    chrome = src / "crates/ui-egui/src/chrome.rs"
-    chrome_text = chrome.read_text()
-    compact_marker = "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens."
-    compact_guard = """            if not app.has_document() {
+# WordCraft's desktop status row has a full zoom slider and optional indicators.
+# On narrow portrait screens, keep the primary controls visible and move the rest to a menu.
+chrome = src / "crates/ui-egui/src/chrome.rs"
+chrome_text = chrome.read_text()
+compact_marker = "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens."
+compact_guard = """            if not app.has_document() {
                 return;
             }
             let rtl = crate::rtl::on();"""
-    compact_replacement = """            if not app.has_document() {
+compact_replacement = """            if not app.has_document() {
                 return;
             }
 """ + r'''            // WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens.
@@ -323,14 +323,13 @@ rtl.write_text(rtl_text)
                 return;
             }
 ''' + """            let rtl = crate::rtl::on();"""
-    if compact_marker not in chrome_text:
-        if chrome_text.count(compact_guard) != 1:
-            raise SystemExit("Could not find the unique WordCraft status bar insertion point.")
-        chrome_text = chrome_text.replace(compact_guard, compact_replacement, 1)
-        chrome.write_text(chrome_text)
-    elif chrome_text.count(compact_marker) != 1:
-        raise SystemExit("WordCraft compact status row marker is ambiguous.")
-
+if compact_marker not in chrome_text:
+    if chrome_text.count(compact_guard) != 1:
+        raise SystemExit("Could not find the unique WordCraft status bar insertion point.")
+    chrome_text = chrome_text.replace(compact_guard, compact_replacement, 1)
+    chrome.write_text(chrome_text)
+elif chrome_text.count(compact_marker) != 1:
+    raise SystemExit("WordCraft compact status row marker is ambiguous.")
 PY
 
     # Ensure both the official Hebrew catalog and the Android-specific RTL switches are present.
