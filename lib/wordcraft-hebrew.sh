@@ -249,7 +249,7 @@ rtl.write_text(rtl_text)
                         if ui.small_button(format!("{page}/{}", l.pages.len())).clicked() {
                             let _ = app.run("ui.dialog", json!({"name": "goto"}));
                         }
-                        if ui.small_button(&wtxt).clicked() {
+                        if ui.small_button(wtxt.as_str()).clicked() {
                             let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
                         }
                         if ui.small_button(format!("{zoom:.0}%")).clicked() && !reading {
