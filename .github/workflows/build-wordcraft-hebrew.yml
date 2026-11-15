@@ -9,6 +9,10 @@ on:
       - 'lib/build-common.sh'
       - 'lib/wordcraft-hebrew.sh'
       - 'lib/scrolling.sh'
+      - 'templates/android/**'
+      - 'vendor/android-activity/**'
+      - 'vendor/egui-winit/**'
+      - 'vendor/winit/**'
   workflow_dispatch:
 
 permissions:
@@ -144,6 +148,17 @@ jobs:
             exit 1
           fi
           echo "Verified: Backstage content supports horizontal and vertical touch scrolling."
+
+      - name: Verify mobile voice input, rotation and compact status row
+        run: |
+          set -Eeuo pipefail
+          MANIFEST="source/wordcraft/apps/wordcraft-android/Cargo.toml"
+          grep -F 'orientation = "fullUser"' "$MANIFEST"
+          grep -F 'TYPE_TEXT_FLAG_AUTO_CORRECT' templates/android/SafActivity.java
+          grep -F 'TYPE_TEXT_FLAG_MULTI_LINE' templates/android/SafActivity.java
+          grep -F 'if ui.available_width() < 560.0' source/wordcraft/crates/ui-egui/src/chrome.rs
+          grep -F 'wordcraft_mobile_scale_v1' lib/build-common.sh
+          echo "Verified WordCraft voice-input metadata, user-controlled rotation and compact mobile status row."
 
       - name: Verify APK, package id and signing certificate
         id: verify_apk

@@ -226,6 +226,7 @@ public final class __CLASS__ extends NativeActivity {
             ViewGroup content = decor.findViewById(android.R.id.content);
             if (content != null && inputView == null) {
                 inputView = new ArtCraftInputView(this);
+                inputView.setId(View.generateViewId());
                 content.addView(inputView, new ViewGroup.LayoutParams(1, 1));
                 inputView.setVisibility(View.GONE);
                 inputView.setFocusable(false);
@@ -314,7 +315,26 @@ public final class __CLASS__ extends NativeActivity {
 
         @Override
         public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+            // Describe a real multi-line text target to Android IMEs, including offline voice
+            // keyboards. Text commits continue through the existing queue into egui.
+            int selectionStart = Selection.getSelectionStart(editable);
+            int selectionEnd = Selection.getSelectionEnd(editable);
+            if (selectionStart < 0 || selectionStart > editable.length()) {
+                selectionStart = editable.length();
+            }
+            if (selectionEnd < 0 || selectionEnd > editable.length()) {
+                selectionEnd = selectionStart;
+            }
+            Selection.setSelection(editable, selectionStart, selectionEnd);
+            outAttrs.packageName = getPackageName();
+            outAttrs.fieldId = getId();
+            outAttrs.initialSelStart = selectionStart;
+            outAttrs.initialSelEnd = selectionEnd;
             outAttrs.inputType = InputType.TYPE_CLASS_TEXT;
+            if ("com.artcraft.wordcraft".equals(getPackageName())) {
+                outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_AUTO_CORRECT
+                        | InputType.TYPE_TEXT_FLAG_MULTI_LINE;
+            }
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI | EditorInfo.IME_FLAG_NO_FULLSCREEN;
             return new BaseInputConnection(this, true) {
                 @Override

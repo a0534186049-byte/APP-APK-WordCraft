@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed
+- **WordCraft mobile voice-input compatibility** — Android now publishes a stable editor identity,
+  the current selection and multi-line/auto-correct editor hints. The existing InputConnection
+  queue remains the bridge into WordCraft, allowing a separately installed keyboard, including
+  an offline dictation keyboard, to commit recognized text. The keyboard application is not
+  bundled or modified.
+- **WordCraft phone layout** — narrow portrait screens use a compact page/count/zoom status row,
+  with secondary controls in a menu. The automatic phone interface size is 85%; an upgrade
+  migrates only the previous 150% default and preserves another size selected by the user.
+- **WordCraft rotation preference** — the Android activity uses fullUser, so rotation follows the
+  device's user setting rather than the sensor unconditionally.
+
 ### Added
 - Added Android port targets and APK build support for:
   - **SolidCraft** (`tangency-labs/solidcraft`): Parametric 3D CAD application in pure Rust with support for `.sc`, `.solidcraft`, `.step`, `.stp`, `.stl`, `.3mf`, `.dxf`, and `.obj` formats.

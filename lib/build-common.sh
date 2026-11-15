@@ -2606,7 +2606,7 @@ UI_SCALE_BOOTSTRAP = {
     "vectorcraft": '''let _ = inner.session.execute("prefs.set", serde_json::json!({"key": "uiScaling", "value": 0.75}));''',
     # WordCraft's sizes are absolute ("100%" is one screen pixel per point, not the system's scale),
     # so a dense screen gets 150 % of that baseline.
-    "wordcraft": '''inner.ui.interface_size = @UI@::theme::InterfaceSize::from_percent(150.0).unwrap_or_default();''',
+    "wordcraft": '''inner.ui.interface_size = @UI@::theme::InterfaceSize::from_percent(85.0).unwrap_or_default();''',
     "designcraft": '''inner.ui.ui_scale = 0.75;''',
     "deckcraft": '''inner.ui.ui_scale = 0.75;''',
     # SoundCraft's slider tops out at 1.5 (set to 0.75 / 75% for mobile).
@@ -2879,6 +2879,29 @@ fn persist_save(inner: &mut {app_type}, dir: &std::path::Path) {{
         # The scale runs *after* `persist_load` (so nothing the loader applies can overwrite it) and
         # is written straight back by `persist_save`.
         _scale = _bootstrap.replace("@UI@", ui_ident).replace("@ENGINE@", engine_ident)
+        if app == "wordcraft":
+            # Migrate only the old automatic 150% phone default. A different saved size belongs to the user.
+            _bootstrap_body = (
+                "let persist = persist_dir(&app);\n"
+                "        if let Some(dir) = &persist {\n"
+                "            persist_load(&mut inner, dir);\n"
+                + _after
+                + "            if device_is_high_density(&app) == Some(true) {\n"
+                "                let migration_done = std::fs::read_to_string(dir.join(\"wordcraft_mobile_scale_v1\")).ok().is_some_and(|saved| saved.trim() == \"85\");\n"
+                "                if !migration_done {\n"
+                "                    let first_mobile_setup = device_scale_first_time(dir);\n"
+                "                    let old_mobile_default = inner.ui.interface_size.percent() == Some(150);\n"
+                "                    if first_mobile_setup || old_mobile_default {\n"
+                f"                        {_scale}\n"
+                "                        persist_save(&mut inner, dir);\n"
+                "                    }\n"
+                "                    persist_write(dir, \"wordcraft_mobile_scale_v1\", b\"85\");\n"
+                "                }\n"
+                "            }\n"
+                "        }\n"
+                "        "
+            )
+        else:
         _bootstrap_body = (
             "let persist = persist_dir(&app);\n"
             "        if let Some(dir) = &persist {\n"
@@ -3027,13 +3050,14 @@ try:
     # Android open/share associations for the app's document types (the MAIN/LAUNCHER entry is always
     # first). Shared with the adapter launchers; see lib/file_associations.py.
     intent_filter_value = file_associations.intent_filter_toml(app)
+    screen_orientation = "fullUser" if app == "wordcraft" else "sensor"
     if saf:
         activity_block = f'''[[package.metadata.android.application.activity]]
 name = ".{saf['activity']}"
 config_changes = "{config_changes}"
 label = "{title}"
 launch_mode = "singleTask"
-orientation = "sensor"
+orientation = "{screen_orientation}"
 exported = true
 # The MAIN/LAUNCHER filter that gives the APK a launcher icon; the remaining filters register
 # the app for its document types so the system can open and share them with it. Keep it inline:
@@ -3049,7 +3073,7 @@ value = "{app}_android"
 config_changes = "{config_changes}"
 label = "{title}"
 launch_mode = "singleTask"
-orientation = "sensor"
+orientation = "{screen_orientation}"
 exported = true
 intent_filter = {intent_filter_value}
 '''
@@ -4191,7 +4215,7 @@ print(f"  Engine crate: {engine_pkg}")
 print(f"  UI crate: {ui_pkg}")
 print(f"  UI app type: {app_type}")
 print(f"  Icon: {icon.relative_to(src) if icon.is_relative_to(src) else icon}")
-print("  Orientation: sensor (allows portrait and landscape rotation)")
+print(f"  Orientation: {screen_orientation} (WordCraft follows the device rotation preference)")
 PY
 fi
 
