@@ -203,6 +203,134 @@ rtl_text = rtl_text.replace(
     1,
 )
 rtl.write_text(rtl_text)
+
+    # WordCraft's desktop status row has a full zoom slider and optional indicators.
+    # On narrow portrait screens, keep the primary controls visible and move the rest to a menu.
+    chrome = src / "crates/ui-egui/src/chrome.rs"
+    chrome_text = chrome.read_text()
+    compact_marker = "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens."
+    compact_guard = """            if not app.has_document() {
+                return;
+            }
+            let rtl = crate::rtl::on();"""
+    compact_replacement = """            if not app.has_document() {
+                return;
+            }
+""" + r'''            // WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens.
+            if ui.available_width() < 560.0 {
+                let l = app.session.layout();
+                let page = if let Some(p) = app.canvas.viewed_page {
+                    p.min(l.pages.len().saturating_sub(1)) + 1
+                } else if app.session.selects_whole_story() {
+                    app.session.page_hint.min(l.pages.len().saturating_sub(1)) + 1
+                } else {
+                    l.caret_on(&app.session.sel.focus, app.session.page_hint)
+                        .map(|c| c.page + 1)
+                        .unwrap_or(1)
+                };
+                let unit = app.ui.status_count;
+                let counts = app.cached_status_counts();
+                let wtxt = if app.session.sel.is_collapsed() || crate::objects::selected(app).is_some() {
+                    status_count_text(unit, counts.in_unit(unit), None)
+                } else {
+                    let selected = crate::count_in_unit(&app.session.selected_text(), unit);
+                    status_count_text(unit, counts.in_unit(unit), Some(selected))
+                };
+                let reading = app.session.view.read_mode;
+                let zoom = (if reading {
+                    app.session.view.read_zoom
+                } else {
+                    app.canvas.scale / crate::canvas::PX_PER_PT
+                } * 100.0)
+                    .round();
+                crate::rtl::root(ui, |ui| {
+                    ui.horizontal_centered(|ui| {
+                        ui.spacing_mut().item_spacing = vec2(5.0, 0.0);
+                        if ui.small_button(format!("{page}/{}", l.pages.len())).clicked() {
+                            let _ = app.run("ui.dialog", json!({"name": "goto"}));
+                        }
+                        if ui.small_button(&wtxt).clicked() {
+                            let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
+                        }
+                        if ui.small_button(format!("{zoom:.0}%")).clicked() && !reading {
+                            let _ = app.run("ui.dialog", json!({"name": "zoom"}));
+                        }
+                        ui.menu_button("⋯", |ui| {
+                            ui.set_min_width(210.0);
+                            if reading {
+                                if ui.button(tl!("Zoom In")).clicked() {
+                                    let _ = app.run(
+                                        "view.readTextSize",
+                                        json!({"value": (zoom + 10.0).min(150.0)}),
+                                    );
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Zoom Out")).clicked() {
+                                    let _ = app.run(
+                                        "view.readTextSize",
+                                        json!({"value": (zoom - 10.0).max(75.0)}),
+                                    );
+                                    ui.close();
+                                }
+                            } else {
+                                if ui.button(tl!("Zoom In")).clicked() {
+                                    let _ = app.run("view.zoomIn", json!({}));
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Zoom Out")).clicked() {
+                                    let _ = app.run("view.zoomOut", json!({}));
+                                    ui.close();
+                                }
+                            }
+                            if ui.button(tl!("Word Count")).clicked() {
+                                let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
+                                ui.close();
+                            }
+                            ui.separator();
+                            for c in crate::StatusCount::ALL {
+                                if ui
+                                    .selectable_label(app.ui.status_count == c, tl!(c.label()))
+                                    .clicked()
+                                {
+                                    let _ = app.run("ui.statusCount", json!({"value": c.code()}));
+                                    ui.close();
+                                }
+                            }
+                            ui.separator();
+                            ui.menu_button(tl!("Language"), |ui| {
+                                ui.set_min_width(220.0);
+                                crate::rtl::root(ui, |ui| crate::ribbon::language_menu(ui, app));
+                            });
+                            if ui.button(tl!("Web Layout")).clicked() {
+                                let _ = app.run("view.webLayout", json!({}));
+                                ui.close();
+                            }
+                            if ui.button(tl!("Print Layout")).clicked() {
+                                let _ = app.run("view.printLayout", json!({}));
+                                ui.close();
+                            }
+                            if ui.button(tl!("Read Mode")).clicked() {
+                                let _ = app.run("view.readMode", json!({}));
+                                ui.close();
+                            }
+                            if ui.button(tl!("Focus")).clicked() {
+                                let _ = app.run("view.focus", json!({}));
+                                ui.close();
+                            }
+                        });
+                    });
+                });
+                return;
+            }
+''' + """            let rtl = crate::rtl::on();"""
+    if compact_marker not in chrome_text:
+        if chrome_text.count(compact_guard) != 1:
+            raise SystemExit("Could not find the unique WordCraft status bar insertion point.")
+        chrome_text = chrome_text.replace(compact_guard, compact_replacement, 1)
+        chrome.write_text(chrome_text)
+    elif chrome_text.count(compact_marker) != 1:
+        raise SystemExit("WordCraft compact status row marker is ambiguous.")
+
 PY
 
     # Ensure both the official Hebrew catalog and the Android-specific RTL switches are present.
@@ -221,7 +349,9 @@ for name in ("common.tsv", "wordcraft.tsv"):
 i18n = (src / "crates/ui-egui/src/i18n.rs").read_text()
 tests = (src / "crates/ui-egui/src/i18n/tests.rs").read_text()
 engine = (src / "crates/engine/src/tests/typing.rs").read_text()
+chrome = (src / "crates/ui-egui/src/chrome.rs").read_text()
 assert 'const RTL_LANGUAGES: [&str; 2] = ["ar", "he"];' in i18n
+assert "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens." in chrome
 assert 'code: "he", prefer_hans: false, editing_lang: Some("he-IL")' in i18n
 assert "hebrew_locales_and_saved_preference_work_without_changing_the_document" in tests
 assert 'let s = typed("שלום");' in engine
