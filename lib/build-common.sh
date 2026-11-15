@@ -2604,8 +2604,7 @@ UI_SCALE_BOOTSTRAP = {
     "filmcraft": '''let _ = inner.session.execute("prefs.set", serde_json::json!({"key": "appearance.uiScale", "value": "75"}));''',
     # VectorCraft's scale is a factor (1.0 is the system's own size); 0.75 gives the canvas more room.
     "vectorcraft": '''let _ = inner.session.execute("prefs.set", serde_json::json!({"key": "uiScaling", "value": 0.75}));''',
-    # WordCraft's sizes are absolute ("100%" is one screen pixel per point, not the system's scale),
-    # so a dense screen gets 150 % of that baseline.
+    # WordCraft's absolute interface size is reduced to 85% on phone-class screens.
     "wordcraft": '''inner.ui.interface_size = @UI@::theme::InterfaceSize::from_percent(85.0).unwrap_or_default();''',
     "designcraft": '''inner.ui.ui_scale = 0.75;''',
     "deckcraft": '''inner.ui.ui_scale = 0.75;''',
@@ -2902,18 +2901,18 @@ fn persist_save(inner: &mut {app_type}, dir: &std::path::Path) {{
                 "        "
             )
         else:
-        _bootstrap_body = (
-            "let persist = persist_dir(&app);\n"
-            "        if let Some(dir) = &persist {\n"
-            "            persist_load(&mut inner, dir);\n"
-            + _after
-            + "            if device_is_high_density(&app) == Some(true) && device_scale_first_time(dir) {\n"
-            f"                {_scale}\n"
-            "                persist_save(&mut inner, dir);\n"
-            "            }\n"
-            "        }\n"
-            "        "
-        )
+            _bootstrap_body = (
+                "let persist = persist_dir(&app);\n"
+                "        if let Some(dir) = &persist {\n"
+                "            persist_load(&mut inner, dir);\n"
+                + _after
+                + "            if device_is_high_density(&app) == Some(true) && device_scale_first_time(dir) {\n"
+                f"                {_scale}\n"
+                "                persist_save(&mut inner, dir);\n"
+                "            }\n"
+                "        }\n"
+                "        "
+            )
     else:
         _bootstrap_body = (
             "let persist = persist_dir(&app);\n"
