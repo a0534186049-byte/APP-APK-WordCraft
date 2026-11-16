@@ -350,22 +350,13 @@ if title_marker not in chrome_text:
 elif chrome_text.count(title_marker) != 1:
     raise SystemExit("WordCraft mobile title-bar marker is ambiguous.")
 
-autosave_anchor = "                    // AutoSave switch: greyed out, with the reason as its tooltip, when AutoSave can't"
-autosave_guard = "                    if !compact {\n" + autosave_anchor
-if autosave_guard not in chrome_text:
-    if chrome_text.count(autosave_anchor) != 1:
-        raise SystemExit("Could not find the unique AutoSave/Quick Access title-bar cluster.")
-    chrome_text = chrome_text.replace(autosave_anchor, autosave_guard, 1)
-
-qat_anchor = """                    qat_end = if rtl { ui.min_rect().min.x } else { ui.min_rect().max.x };
-                    ui.with_layout(crate::rtl::far_side(ui, egui::Align::Center), |ui| {"""
-qat_replacement = """                    qat_end = if rtl { ui.min_rect().min.x } else { ui.min_rect().max.x };
-                    }
-                    ui.with_layout(crate::rtl::far_side(ui, egui::Align::Center), |ui| {"""
-if qat_replacement not in chrome_text:
-    if chrome_text.count(qat_anchor) != 1:
-        raise SystemExit("Could not close the compact title-bar desktop-control guard safely.")
-    chrome_text = chrome_text.replace(qat_anchor, qat_replacement, 1)
+# On mobile, keep the AutoSave control but omit the optional desktop Quick Access cluster.
+quick_access_anchor = "                    if app.ui.quick_access_toolbar {"
+quick_access_mobile = "                    if !compact && app.ui.quick_access_toolbar {"
+if quick_access_mobile not in chrome_text:
+    if chrome_text.count(quick_access_anchor) != 1:
+        raise SystemExit("Could not find the unique Quick Access title-bar control.")
+    chrome_text = chrome_text.replace(quick_access_anchor, quick_access_mobile, 1)
 
 discord_anchor = "                        if app.ui.show_discord {"
 if "                        if !compact && app.ui.show_discord {" not in chrome_text:
@@ -405,6 +396,11 @@ if "search_box(app, ui, 22.0, false);" not in chrome_text:
     chrome_text = chrome_text.replace(screen_bar_call, "            search_box(app, ui, 22.0, false);", 1)
 
 chrome.write_text(chrome_text)
+
+if chrome_text.count("let compact = full.width() < 560.0;") != 1:
+    raise SystemExit("The compact WordCraft title-bar breakpoint was not installed exactly once.")
+if chrome_text.count("if !compact && app.ui.quick_access_toolbar") != 1:
+    raise SystemExit("The compact WordCraft Quick Access visibility guard is missing.")
 
 # Measurement rulers take a fixed strip; hide them automatically on phone-width screens.
 # The user's saved View > Ruler preference still applies again on wider displays.
