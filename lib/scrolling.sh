@@ -466,12 +466,30 @@ if app == "wordcraft":
     ):
         fixed.append("crates/ui-egui (the keyboard-hide request, at rest)")
 
-    if fix(
-        "crates/ui-egui/src/window_ui.rs",
-        "            shown_document,\n        } = self;",
-        "            shown_document,\n            request_ime_hide: _,\n        } = self;",
-    ):
-        fixed.append("crates/ui-egui/src/window_ui.rs (the keyboard-hide request destructure)")
+    # Upstream added clipboard_published to WordApp after this patch was first written.
+    # Match both layouts; otherwise the exact-string patch silently misses the newer layout,
+    # leaving request_ime_hide out of this exhaustive destructure and breaking the APK build.
+    window_ui_path = "crates/ui-egui/src/window_ui.rs"
+    patched_wordapp_destructure = fix(
+        window_ui_path,
+        "            shown_document,\\n        } = self;",
+        "            shown_document,\\n            request_ime_hide: _,\\n        } = self;",
+    ) or fix(
+        window_ui_path,
+        "            clipboard_published: _,\\n        } = self;",
+        "            clipboard_published: _,\\n            request_ime_hide: _,\\n        } = self;",
+    )
+
+    # Do not let a future upstream layout change turn this into another silent no-op.
+    window_ui_text = (src / window_ui_path).read_text()
+    wordapp_match = re.search(r"let\\s+WordApp\\s*\\{(?P<fields>.*?)\\}\\s*=\\s*self;", window_ui_text, re.S)
+    if not wordapp_match or "request_ime_hide" not in wordapp_match.group("fields"):
+        raise SystemExit(
+            "Could not verify request_ime_hide in the WordApp destructure in "
+            f"{window_ui_path}; update this guarded patch for the upstream layout."
+        )
+    if patched_wordapp_destructure:
+        fixed.append(f"{window_ui_path} (the keyboard-hide request destructure)")
 
     # The flick's coast. The upstream constant leaves the momentum to the platform on the
     # platforms that send their own: macOS and Windows (they report the lift, and a touchpad
