@@ -472,17 +472,17 @@ if app == "wordcraft":
     window_ui_path = "crates/ui-egui/src/window_ui.rs"
     patched_wordapp_destructure = fix(
         window_ui_path,
-        "            shown_document,\\n        } = self;",
-        "            shown_document,\\n            request_ime_hide: _,\\n        } = self;",
+        "            shown_document,\n        } = self;",
+        "            shown_document,\n            request_ime_hide: _,\n        } = self;",
     ) or fix(
         window_ui_path,
-        "            clipboard_published: _,\\n        } = self;",
-        "            clipboard_published: _,\\n            request_ime_hide: _,\\n        } = self;",
+        "            clipboard_published: _,\n        } = self;",
+        "            clipboard_published: _,\n            request_ime_hide: _,\n        } = self;",
     )
 
     # Do not let a future upstream layout change turn this into another silent no-op.
     window_ui_text = (src / window_ui_path).read_text()
-    wordapp_match = re.search(r"let\\s+WordApp\\s*\\{(?P<fields>.*?)\\}\\s*=\\s*self;", window_ui_text, re.S)
+    wordapp_match = re.search(r"let\s+WordApp\s*\{(?P<fields>.*?)\}\s*=\s*self;", window_ui_text, re.S)
     if not wordapp_match or "request_ime_hide" not in wordapp_match.group("fields"):
         raise SystemExit(
             "Could not verify request_ime_hide in the WordApp destructure in "
