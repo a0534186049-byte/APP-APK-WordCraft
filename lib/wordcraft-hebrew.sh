@@ -67,18 +67,22 @@ for path in (i18n, tests, engine_tests, rtl):
         raise SystemExit(f"Required WordCraft source file is missing: {path}")
 
 text = i18n.read_text()
-if 'pub static LANGUAGES: [LangInfo; 28] = [' in text:
-    text = text.replace(
-        'pub static LANGUAGES: [LangInfo; 28] = [',
-        'pub static LANGUAGES: [LangInfo; 29] = [',
-        1,
-    )
-elif 'pub static LANGUAGES: [LangInfo; 29] = [' not in text:
-    raise SystemExit("Unexpected LANGUAGES array; refusing an unsafe source patch.")
-
+# Upstream adds supported locales over time. Derive the array length from the actual entries
+# instead of assuming a fixed upstream count, then append Hebrew exactly once.
+prefix = "pub static LANGUAGES: [LangInfo; "
+if text.count(prefix) != 1:
+    raise SystemExit("Unexpected LANGUAGES declaration; refusing an unsafe source patch.")
+decl_start = text.index(prefix) + len(prefix)
+decl_end = text.index("] = [", decl_start)
+array_end = text.index("\n];", decl_end)
+array_body = text[decl_end + len("] = ["):array_end]
+entry_count = array_body.count("LangInfo {")
 he_entry = '    LangInfo { code: "he", prefer_hans: false, editing_lang: Some("he-IL") },'
 ar_entry = '    LangInfo { code: "ar", prefer_hans: false, editing_lang: None },'
-if he_entry not in text:
+has_hebrew = he_entry in array_body
+expected_count = entry_count + (0 if has_hebrew else 1)
+text = text[:decl_start] + str(expected_count) + text[decl_end:]
+if not has_hebrew:
     if text.count(ar_entry) != 1:
         raise SystemExit("Could not find exactly one Arabic language entry to extend.")
     text = text.replace(ar_entry, ar_entry + "\n" + he_entry, 1)
@@ -330,6 +334,92 @@ if compact_marker not in chrome_text:
     chrome.write_text(chrome_text)
 elif chrome_text.count(compact_marker) != 1:
     raise SystemExit("WordCraft compact status row marker is ambiguous.")
+
+# Compact title chrome on phone-width screens. The normal desktop controls remain unchanged.
+title_marker = "// WordCraft mobile title bar: keep account and command search without desktop-only clusters."
+title_anchor = """            let full = ui.max_rect();
+            // Drag the window by the title bar (integrated title bar on macOS)."""
+title_replacement = """            let full = ui.max_rect();
+            // WordCraft mobile title bar: keep account and command search without desktop-only clusters.
+            let compact = full.width() < 560.0;
+            // Drag the window by the title bar (integrated title bar on macOS)."""
+if title_marker not in chrome_text:
+    if chrome_text.count(title_anchor) != 1:
+        raise SystemExit("Could not find the unique WordCraft title-bar insertion point.")
+    chrome_text = chrome_text.replace(title_anchor, title_replacement, 1)
+elif chrome_text.count(title_marker) != 1:
+    raise SystemExit("WordCraft mobile title-bar marker is ambiguous.")
+
+autosave_anchor = "                    // AutoSave switch: greyed out, with the reason as its tooltip, when AutoSave can't"
+autosave_guard = "                    if !compact {\n" + autosave_anchor
+if autosave_guard not in chrome_text:
+    if chrome_text.count(autosave_anchor) != 1:
+        raise SystemExit("Could not find the unique AutoSave/Quick Access title-bar cluster.")
+    chrome_text = chrome_text.replace(autosave_anchor, autosave_guard, 1)
+
+qat_anchor = """                    qat_end = if rtl { ui.min_rect().min.x } else { ui.min_rect().max.x };
+                    ui.with_layout(crate::rtl::far_side(ui, egui::Align::Center), |ui| {"""
+qat_replacement = """                    qat_end = if rtl { ui.min_rect().min.x } else { ui.min_rect().max.x };
+                    }
+                    ui.with_layout(crate::rtl::far_side(ui, egui::Align::Center), |ui| {"""
+if qat_replacement not in chrome_text:
+    if chrome_text.count(qat_anchor) != 1:
+        raise SystemExit("Could not close the compact title-bar desktop-control guard safely.")
+    chrome_text = chrome_text.replace(qat_anchor, qat_replacement, 1)
+
+discord_anchor = "                        if app.ui.show_discord {"
+if "                        if !compact && app.ui.show_discord {" not in chrome_text:
+    if chrome_text.count(discord_anchor) != 1:
+        raise SystemExit("Could not find the unique Discord title-bar control.")
+    chrome_text = chrome_text.replace(discord_anchor, "                        if !compact && app.ui.show_discord {", 1)
+
+title_search_call = "                        search_box(app, ui, control_h);"
+if "search_box(app, ui, control_h, compact);" not in chrome_text:
+    if chrome_text.count(title_search_call) != 1:
+        raise SystemExit("Could not find the unique title-bar Search call.")
+    chrome_text = chrome_text.replace(title_search_call, "                        search_box(app, ui, control_h, compact);", 1)
+
+search_signature = "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32) {"
+if search_signature in chrome_text:
+    chrome_text = chrome_text.replace(search_signature, "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool) {", 1)
+elif "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool)" not in chrome_text:
+    raise SystemExit("Unexpected WordCraft search_box signature.")
+
+search_width = "    let (r, resp) = ui.allocate_exact_size(vec2(SEARCH_BOX_W, control_h), Sense::click());"
+if search_width in chrome_text:
+    chrome_text = chrome_text.replace(search_width, "    let (r, resp) = ui.allocate_exact_size(vec2(if compact { 32.0 } else { SEARCH_BOX_W }, control_h), Sense::click());", 1)
+elif "vec2(if compact { 32.0 } else { SEARCH_BOX_W }, control_h)" not in chrome_text:
+    raise SystemExit("Could not make the title-bar Search control responsive.")
+
+search_label = "    paint_text(ui.painter(), pos2(crate::rtl::lead_x(rtl, r, 30.0), r.center().y), crate::rtl::lead_center(rtl), ph, &pfont, ptrack, t.text_dim);"
+compact_search_label = "    if !compact {\n" + search_label + "\n    }"
+if compact_search_label not in chrome_text:
+    if chrome_text.count(search_label) != 1:
+        raise SystemExit("Could not make the Search placeholder compact-safe.")
+    chrome_text = chrome_text.replace(search_label, compact_search_label, 1)
+
+screen_bar_call = "            search_box(app, ui, 22.0);"
+if "search_box(app, ui, 22.0, false);" not in chrome_text:
+    if chrome_text.count(screen_bar_call) != 1:
+        raise SystemExit("Could not update the Full Screen Search call.")
+    chrome_text = chrome_text.replace(screen_bar_call, "            search_box(app, ui, 22.0, false);", 1)
+
+chrome.write_text(chrome_text)
+
+# Measurement rulers take a fixed strip; hide them automatically on phone-width screens.
+# The user's saved View > Ruler preference still applies again on wider displays.
+canvas = src / "crates/ui-egui/src/canvas.rs"
+canvas_text = canvas.read_text()
+ruler_marker = "        // WordCraft hides measurement rulers automatically on narrow screens."
+ruler_anchor = "    let show_ruler = app.session.view.ruler\n"
+ruler_replacement = ruler_anchor + ruler_marker + "\n        && full.width() >= 560.0\n"
+if ruler_marker not in canvas_text:
+    if canvas_text.count(ruler_anchor) != 1:
+        raise SystemExit("Could not find the unique ruler visibility calculation.")
+    canvas_text = canvas_text.replace(ruler_anchor, ruler_replacement, 1)
+elif canvas_text.count(ruler_marker) != 1:
+    raise SystemExit("WordCraft mobile ruler marker is ambiguous.")
+canvas.write_text(canvas_text)
 PY
 
     # Ensure both the official Hebrew catalog and the Android-specific RTL switches are present.

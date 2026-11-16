@@ -153,12 +153,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           MANIFEST="source/wordcraft/apps/wordcraft-android/Cargo.toml"
-          grep -F 'orientation = "fullUser"' "$MANIFEST"
+          grep -F 'orientation = "user"' "$MANIFEST"
           grep -F 'TYPE_TEXT_FLAG_AUTO_CORRECT' templates/android/SafActivity.java
           grep -F 'TYPE_TEXT_FLAG_MULTI_LINE' templates/android/SafActivity.java
           grep -F 'if ui.available_width() < 560.0' source/wordcraft/crates/ui-egui/src/chrome.rs
           grep -F 'wordcraft_mobile_scale_v1' lib/build-common.sh
-          echo "Verified WordCraft voice-input metadata, user-controlled rotation and compact mobile status row."
+          grep -F 'WordCraft mobile title bar: keep account and command search without desktop-only clusters.' source/wordcraft/crates/ui-egui/src/chrome.rs
+          grep -F 'full.width() >= 560.0' source/wordcraft/crates/ui-egui/src/canvas.rs
+          echo "Verified WordCraft voice input, user-controlled rotation, responsive mobile chrome, status row and rulers."
 
       - name: Verify APK, package id and signing certificate
         id: verify_apk

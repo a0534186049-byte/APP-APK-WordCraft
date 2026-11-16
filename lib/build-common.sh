@@ -3049,7 +3049,7 @@ try:
     # Android open/share associations for the app's document types (the MAIN/LAUNCHER entry is always
     # first). Shared with the adapter launchers; see lib/file_associations.py.
     intent_filter_value = file_associations.intent_filter_toml(app)
-    screen_orientation = "fullUser" if app == "wordcraft" else "sensor"
+    screen_orientation = "user" if app == "wordcraft" else "sensor"
     if saf:
         activity_block = f'''[[package.metadata.android.application.activity]]
 name = ".{saf['activity']}"
