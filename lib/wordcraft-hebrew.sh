@@ -54,6 +54,7 @@ prepare_wordcraft_hebrew() {
 
     python3 - "$src" <<'PY'
 from pathlib import Path
+import re
 import sys
 
 src = Path(sys.argv[1])
