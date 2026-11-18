@@ -364,36 +364,57 @@ if "                        if !compact && app.ui.show_discord {" not in chrome_
         raise SystemExit("Could not find the unique Discord title-bar control.")
     chrome_text = chrome_text.replace(discord_anchor, "                        if !compact && app.ui.show_discord {", 1)
 
-title_search_call = "                        search_box(app, ui, control_h);"
-if "search_box(app, ui, control_h, compact);" not in chrome_text:
-    if chrome_text.count(title_search_call) != 1:
-        raise SystemExit("Could not find the unique title-bar Search call.")
-    chrome_text = chrome_text.replace(title_search_call, "                        search_box(app, ui, control_h, compact);", 1)
+# Upstream WordCraft now computes a responsive TitleBarFit and passes the search width
+# directly to search_box. Older revisions used a fixed three-argument call. Support both
+# shapes so upstream UI refactors do not block the Hebrew Android build.
+title_search_call_fitted = "                        search_box(app, ui, control_h, fit.search);"
+title_search_call_legacy = "                        search_box(app, ui, control_h);"
+modern_search = False
+if chrome_text.count(title_search_call_fitted) == 1:
+    chrome_text = chrome_text.replace(
+        title_search_call_fitted,
+        "                        search_box(app, ui, control_h, if compact { control_h } else { fit.search });",
+        1,
+    )
+    modern_search = True
+elif chrome_text.count(title_search_call_legacy) == 1:
+    chrome_text = chrome_text.replace(
+        title_search_call_legacy,
+        "                        search_box(app, ui, control_h, compact);",
+        1,
+    )
+else:
+    raise SystemExit("Could not find the unique title-bar Search call in a supported upstream form.")
 
-search_signature = "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32) {"
-if search_signature in chrome_text:
-    chrome_text = chrome_text.replace(search_signature, "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool) {", 1)
-elif "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool)" not in chrome_text:
-    raise SystemExit("Unexpected WordCraft search_box signature.")
+if modern_search:
+    # The newer API already hides the Search placeholder when there is not enough width.
+    # The compact title bar only needs the icon-sized width selected above.
+    if "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, width: f32)" not in chrome_text:
+        raise SystemExit("Unexpected responsive search_box signature.")
+    if "search_box(app, ui, 22.0, TitleBarFit::SEARCH);" not in chrome_text:
+        raise SystemExit("Could not confirm the newer Full Screen Search call.")
+else:
+    search_signature = "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool) {"
+    if search_signature not in chrome_text:
+        raise SystemExit("Unexpected legacy search_box signature after patch.")
+    search_width = "    let (r, resp) = ui.allocate_exact_size(vec2(SEARCH_BOX_W, control_h), Sense::click());"
+    if search_width in chrome_text:
+        chrome_text = chrome_text.replace(search_width, "    let (r, resp) = ui.allocate_exact_size(vec2(if compact { 32.0 } else { SEARCH_BOX_W }, control_h), Sense::click());", 1)
+    elif "vec2(if compact { 32.0 } else { SEARCH_BOX_W }, control_h)" not in chrome_text:
+        raise SystemExit("Could not make the legacy title-bar Search control responsive.")
 
-search_width = "    let (r, resp) = ui.allocate_exact_size(vec2(SEARCH_BOX_W, control_h), Sense::click());"
-if search_width in chrome_text:
-    chrome_text = chrome_text.replace(search_width, "    let (r, resp) = ui.allocate_exact_size(vec2(if compact { 32.0 } else { SEARCH_BOX_W }, control_h), Sense::click());", 1)
-elif "vec2(if compact { 32.0 } else { SEARCH_BOX_W }, control_h)" not in chrome_text:
-    raise SystemExit("Could not make the title-bar Search control responsive.")
+    search_label = "    paint_text(ui.painter(), pos2(crate::rtl::lead_x(rtl, r, 30.0), r.center().y), crate::rtl::lead_center(rtl), ph, &pfont, ptrack, t.text_dim);"
+    compact_search_label = "    if !compact {\\n" + search_label + "\\n    }"
+    if compact_search_label not in chrome_text:
+        if chrome_text.count(search_label) != 1:
+            raise SystemExit("Could not make the legacy Search placeholder compact-safe.")
+        chrome_text = chrome_text.replace(search_label, compact_search_label, 1)
 
-search_label = "    paint_text(ui.painter(), pos2(crate::rtl::lead_x(rtl, r, 30.0), r.center().y), crate::rtl::lead_center(rtl), ph, &pfont, ptrack, t.text_dim);"
-compact_search_label = "    if !compact {\n" + search_label + "\n    }"
-if compact_search_label not in chrome_text:
-    if chrome_text.count(search_label) != 1:
-        raise SystemExit("Could not make the Search placeholder compact-safe.")
-    chrome_text = chrome_text.replace(search_label, compact_search_label, 1)
-
-screen_bar_call = "            search_box(app, ui, 22.0);"
-if "search_box(app, ui, 22.0, false);" not in chrome_text:
-    if chrome_text.count(screen_bar_call) != 1:
-        raise SystemExit("Could not update the Full Screen Search call.")
-    chrome_text = chrome_text.replace(screen_bar_call, "            search_box(app, ui, 22.0, false);", 1)
+    screen_bar_call = "            search_box(app, ui, 22.0);"
+    if "            search_box(app, ui, 22.0, false);" not in chrome_text:
+        if chrome_text.count(screen_bar_call) != 1:
+            raise SystemExit("Could not update the legacy Full Screen Search call.")
+        chrome_text = chrome_text.replace(screen_bar_call, "            search_box(app, ui, 22.0, false);", 1)
 
 chrome.write_text(chrome_text)
 
