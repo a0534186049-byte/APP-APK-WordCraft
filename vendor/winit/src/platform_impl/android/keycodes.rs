@@ -226,6 +226,15 @@ pub fn to_logical(key_char: Option<KeyMapChar>, keycode: Keycode) -> Key {
 
     let native = NativeKey::Android(keycode.into());
 
+    // Editing keys are identified by their Android keycode, not by the character map.
+    // Some soft keyboards/device key maps can expose a control character for DEL;
+    // treating that as ordinary text prevents Backspace from reaching the editor.
+    match keycode {
+        Del => return Key::Named(NamedKey::Backspace),
+        ForwardDel => return Key::Named(NamedKey::Delete),
+        _ => {}
+    }
+
     match key_char {
         Some(KeyMapChar::Unicode(c)) => Key::Character(smol_str::SmolStr::from_iter([c])),
         Some(KeyMapChar::CombiningAccent(c)) => Key::Dead(Some(c)),
@@ -604,5 +613,26 @@ pub fn to_location(keycode: Keycode) -> KeyLocation {
         NumpadRightParen => KeyLocation::Numpad,
 
         _ => KeyLocation::Standard,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn backspace_keycode_wins_over_unicode_control_character() {
+        assert_eq!(
+            to_logical(Some(KeyMapChar::Unicode('\u{8}')), Keycode::Del),
+            Key::Named(NamedKey::Backspace)
+        );
+    }
+
+    #[test]
+    fn forward_delete_keycode_wins_over_unicode_control_character() {
+        assert_eq!(
+            to_logical(Some(KeyMapChar::Unicode('\u{7f}')), Keycode::ForwardDel),
+            Key::Named(NamedKey::Delete)
+        );
     }
 }
