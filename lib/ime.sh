@@ -89,3 +89,7 @@ if "fn delete_surrounding_at_a_paragraph_start_joins_it_with_the_one_above()" no
     tests.write_text(test_source.replace(marker, test + marker, 1))
 print("Installed the Android paragraph-start Backspace patch and regression test.")
 PY
+
+# Format WordCraft after this app-specific Rust patch so the CI preflight and build use
+# a clean tree. The Hebrew preparation step has already formatted its own changes.
+(cd "$SRC" && cargo fmt --all)
