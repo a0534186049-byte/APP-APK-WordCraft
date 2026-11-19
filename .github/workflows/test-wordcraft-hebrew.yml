@@ -36,6 +36,7 @@ jobs:
           set -Eeuo pipefail
           source lib/wordcraft-hebrew.sh
           prepare_wordcraft_hebrew source/wordcraft "$GITHUB_WORKSPACE"
+          bash lib/ime.sh source/wordcraft wordcraft WordCraft
           {
             echo "CRAFT_I18N_DIR=$GITHUB_WORKSPACE/source/craft-i18n"
             echo "CRAFT_I18N_REQUIRED=1"
@@ -44,6 +45,10 @@ jobs:
       - name: Check Rust formatting
         working-directory: source/wordcraft
         run: cargo fmt --all -- --check
+
+      - name: Test Android DeleteSurrounding and paragraph-start Backspace
+        working-directory: source/wordcraft
+        run: cargo test -p wordcraft-ui-egui --lib delete_surrounding_at_a_paragraph_start_joins_it_with_the_one_above
 
       - name: Test Hebrew interface registration and RTL
         working-directory: source/wordcraft

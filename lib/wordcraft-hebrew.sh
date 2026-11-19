@@ -440,6 +440,120 @@ elif canvas_text.count(ruler_marker) != 1:
 canvas.write_text(canvas_text)
 PY
 
+    # Keep the full WordCraft Options interface accessible on phone-sized Android screens.
+    python3 - "$src" <<'PY'
+from pathlib import Path
+import sys
+
+src = Path(sys.argv[1])
+backstage = src / "crates/ui-egui/src/backstage.rs"
+options = src / "crates/ui-egui/src/options.rs"
+for path in (backstage, options):
+    if not path.is_file():
+        raise SystemExit(f"Required WordCraft options UI source is missing: {path}")
+
+b = backstage.read_text()
+old_page = '                    "options" => crate::options::page(app, ui),'
+new_page = '                    "options" => {}, // rendered in the modal below'
+if old_page in b:
+    b = b.replace(old_page, new_page, 1)
+elif new_page not in b:
+    raise SystemExit("Could not find the Options page dispatch in backstage.rs.")
+
+modal_anchor = """    });
+}
+
+/// Recovery is a separate copy. Leaving this page never discards it."""
+modal_code = """    });
+
+    // The Options page sits in a large modal over the dimmed Backstage, not in the narrow
+    // remaining content column. Keep the existing categories and selected settings pane.
+    if app.ui.backstage_page == "options" {
+        let ctx = ui.ctx().clone();
+        let screen = ctx.content_rect();
+        let modal_size = vec2(
+            (screen.width() - 24.0).clamp(300.0, 900.0),
+            (screen.height() - 24.0).clamp(320.0, 1400.0),
+        );
+        let mut close = false;
+        let response = egui::Modal::new(egui::Id::new("wordcraft-options-modal")).show(&ctx, |ui| {
+            ui.set_min_size(modal_size);
+            ui.set_max_size(modal_size);
+            crate::rtl::root(ui, |ui| {
+                crate::rtl::horizontal_top(ui, |ui| {
+                    if ui.button(tl!("Close")).clicked() {
+                        close = true;
+                    }
+                });
+                ui.add_space(6.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("wordcraft-options-modal-scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| crate::options::page(app, ui));
+            });
+        });
+        if close || response.should_close() {
+            app.ui.backstage = false;
+            app.canvas.want_focus = true;
+        }
+    }
+}
+
+/// Recovery is a separate copy. Leaving this page never discards it."""
+if modal_anchor in b:
+    b = b.replace(modal_anchor, modal_code, 1)
+elif "wordcraft-options-modal" not in b:
+    raise SystemExit("Could not find the end of backstage::show for the Options modal.")
+
+o = options.read_text()
+old_body = """    let rtl = crate::rtl::on();
+    let body = |ui: &mut Ui| {
+        crate::rtl::vertical(ui, |ui| {
+            ui.set_width(170.0);
+            for id in PANES {"""
+new_body = """    let rtl = crate::rtl::on();
+    let available_width = ui.available_width();
+    let pane_width = (available_width * 0.34).clamp(112.0, 170.0);
+    let compact = available_width < 460.0;
+    let body = |ui: &mut Ui| {
+        crate::rtl::vertical(ui, |ui| {
+            ui.set_width(pane_width);
+            for id in PANES {"""
+if old_body in o:
+    o = o.replace(old_body, new_body, 1)
+elif "let pane_width = (available_width * 0.34).clamp(112.0, 170.0);" not in o:
+    raise SystemExit("Could not find the fixed category column in options.rs.")
+
+old_row = "                let (r, resp) = ui.allocate_exact_size(vec2(170.0, 30.0), egui::Sense::click());"
+new_row = "                let (r, resp) = ui.allocate_exact_size(vec2(pane_width, 30.0), egui::Sense::click());"
+if old_row in o:
+    o = o.replace(old_row, new_row, 1)
+elif new_row not in o:
+    raise SystemExit("Could not find the Options category-row width.")
+
+old_gap1 = """        ui.add_space(12.0);
+        let (line, _) = ui.allocate_exact_size(vec2(1.0, 420.0), egui::Sense::hover());"""
+new_gap1 = """        ui.add_space(if compact { 6.0 } else { 12.0 });
+        let (line, _) = ui.allocate_exact_size(vec2(1.0, 420.0), egui::Sense::hover());"""
+if old_gap1 in o:
+    o = o.replace(old_gap1, new_gap1, 1)
+elif new_gap1 not in o:
+    raise SystemExit("Could not find the Options category separator spacing.")
+
+old_gap2 = """        ui.add_space(20.0);
+        crate::rtl::vertical(ui, |ui| {"""
+new_gap2 = """        ui.add_space(if compact { 8.0 } else { 20.0 });
+        crate::rtl::vertical(ui, |ui| {"""
+if old_gap2 in o:
+    o = o.replace(old_gap2, new_gap2, 1)
+elif new_gap2 not in o:
+    raise SystemExit("Could not find the Options settings spacing.")
+
+backstage.write_text(b)
+options.write_text(o)
+print("Installed modal Options page while retaining the original two-pane category/settings layout.")
+PY
+
     # Ensure both the official Hebrew catalog and the Android-specific RTL switches are present.
     python3 - "$i18n_dir" "$src" <<'PY'
 from pathlib import Path

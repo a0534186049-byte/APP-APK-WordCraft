@@ -154,6 +154,18 @@ public final class __CLASS__ extends NativeActivity {
         wakeNativeLoop();
     }
 
+    /**
+     * Forward the IME's real surrounding-text deletion to WordCraft.
+     * The hidden Editable is only a keyboard-side shadow, not the document itself.
+     */
+    public void onImeDeleteSurrounding(int beforeChars, int afterChars) {
+        if (beforeChars < 0 || afterChars < 0 || (beforeChars == 0 && afterChars == 0)) return;
+        int before = Math.min(beforeChars, 4000);
+        int after = Math.min(afterChars, 4000);
+        imeQueue.add(String.valueOf((char) 1) + "DS:" + before + ":" + after);
+        wakeNativeLoop();
+    }
+
     public void onImeEnter() {
         imeQueue.add("\n");
         wakeNativeLoop();
@@ -340,6 +352,73 @@ public final class __CLASS__ extends NativeActivity {
                 @Override
                 public Editable getEditable() {
                     return editable;
+                }
+
+                /**
+                 * When the complete range is in the keyboard's shadow text, convert UTF-16
+                 * units to Unicode scalar values. Otherwise retain the original count.
+                 */
+                private int codePointsBefore(int utf16Units) {
+                    int start = Selection.getSelectionStart(editable);
+                    int end = Selection.getSelectionEnd(editable);
+                    if (start < 0 || end < 0 || start != end || start > editable.length()
+                            || utf16Units > start) return utf16Units;
+                    int from = start - utf16Units;
+                    if (from > 0 && from < start
+                            && Character.isLowSurrogate(editable.charAt(from))
+                            && Character.isHighSurrogate(editable.charAt(from - 1))) {
+                        from--;
+                    }
+                    return Character.codePointCount(editable, from, start);
+                }
+
+                private int codePointsAfter(int utf16Units) {
+                    int start = Selection.getSelectionStart(editable);
+                    int end = Selection.getSelectionEnd(editable);
+                    if (start < 0 || end < 0 || start != end || end > editable.length()
+                            || utf16Units > editable.length() - end) return utf16Units;
+                    int to = end + utf16Units;
+                    if (to > 0 && to < editable.length()
+                            && Character.isHighSurrogate(editable.charAt(to - 1))
+                            && Character.isLowSurrogate(editable.charAt(to))) {
+                        to++;
+                    }
+                    return Character.codePointCount(editable, end, to);
+                }
+
+                private boolean forwardDeleteSurrounding(int beforeLength, int afterLength, boolean codePoints) {
+                    if (beforeLength < 0 || afterLength < 0) return false;
+                    if (beforeLength == 0 && afterLength == 0) return true;
+
+                    int beforeChars = codePoints ? beforeLength : codePointsBefore(beforeLength);
+                    int afterChars = codePoints ? afterLength : codePointsAfter(afterLength);
+
+                    // Keep Android's shadow buffer internally consistent, but suppress its watcher:
+                    // the single structured event below is the only edit sent to the document.
+                    boolean wasSuppressing = ArtCraftInputView.this.suppressingWatcher;
+                    ArtCraftInputView.this.suppressingWatcher = true;
+                    try {
+                        if (codePoints) {
+                            super.deleteSurroundingTextInCodePoints(beforeLength, afterLength);
+                        } else {
+                            super.deleteSurroundingText(beforeLength, afterLength);
+                        }
+                    } finally {
+                        ArtCraftInputView.this.suppressingWatcher = wasSuppressing;
+                    }
+
+                    onImeDeleteSurrounding(beforeChars, afterChars);
+                    return true;
+                }
+
+                @Override
+                public boolean deleteSurroundingText(int beforeLength, int afterLength) {
+                    return forwardDeleteSurrounding(beforeLength, afterLength, false);
+                }
+
+                @Override
+                public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+                    return forwardDeleteSurrounding(beforeLength, afterLength, true);
                 }
 
                 @Override

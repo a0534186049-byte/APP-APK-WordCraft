@@ -40,6 +40,35 @@ pub use window_settings::{WindowGeometry, WindowSettings};
 
 use raw_window_handle::HasDisplayHandle;
 
+/// Decode the private Android IME bridge message for DeleteSurrounding.
+#[cfg(any(target_os = "android", test))]
+fn parse_android_delete_surrounding(value: &str) -> Option<(usize, usize)> {
+    let payload = value.strip_prefix("\u{1}DS:")?;
+    let (before, after) = payload.split_once(':')?;
+    if after.contains(':') {
+        return None;
+    }
+    let before = before.parse::<usize>().ok()?;
+    let after = after.parse::<usize>().ok()?;
+    (before <= 4000 && after <= 4000).then_some((before, after))
+}
+
+#[cfg(test)]
+mod android_ime_bridge_tests {
+    use super::parse_android_delete_surrounding;
+
+    #[test]
+    fn parses_bounded_delete_surrounding_requests() {
+        assert_eq!(parse_android_delete_surrounding("\u{1}DS:1:0"), Some((1, 0)));
+        assert_eq!(parse_android_delete_surrounding("\u{1}DS:4:2"), Some((4, 2)));
+        assert_eq!(parse_android_delete_surrounding("\u{1}DS:0:0"), Some((0, 0)));
+        assert_eq!(parse_android_delete_surrounding("\u{1}DS:4001:0"), None);
+        assert_eq!(parse_android_delete_surrounding("\u{1}DS:-1:0"), None);
+        assert_eq!(parse_android_delete_surrounding("\u{1}DS:1"), None);
+        assert_eq!(parse_android_delete_surrounding("ordinary text"), None);
+    }
+}
+
 use dropped_file::NativeFile;
 
 use winit::{
@@ -359,7 +388,12 @@ impl State {
                 self.egui_ctx.request_repaint_after(std::time::Duration::from_millis(16));
             }
             for ev in crate::ime::android::poll_all_ime_events() {
-                if ev == "\x08" {
+                if let Some((before_chars, after_chars)) = parse_android_delete_surrounding(&ev) {
+                    self.egui_input.events.push(egui::Event::Ime(egui::ImeEvent::DeleteSurrounding {
+                        before_chars,
+                        after_chars,
+                    }));
+                } else if ev == "\x08" {
                     self.egui_input.events.push(egui::Event::Key {
                         key: egui::Key::Backspace,
                         physical_key: Some(egui::Key::Backspace),

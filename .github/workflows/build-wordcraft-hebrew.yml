@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build-wordcraft-hebrew.yml'
       - 'lib/build-common.sh'
       - 'lib/wordcraft-hebrew.sh'
+      - 'lib/ime.sh'
       - 'lib/scrolling.sh'
       - 'templates/android/**'
       - 'vendor/android-activity/**'
@@ -93,6 +94,7 @@ jobs:
           git clone --depth 1 --branch main https://github.com/storytold/wordcraft.git source/wordcraft
           source lib/wordcraft-hebrew.sh
           prepare_wordcraft_hebrew source/wordcraft "$GITHUB_WORKSPACE"
+          bash lib/ime.sh source/wordcraft wordcraft WordCraft
           {
             echo "CRAFT_I18N_DIR=$GITHUB_WORKSPACE/source/craft-i18n"
             echo "CRAFT_I18N_REQUIRED=1"
@@ -103,6 +105,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           cargo fmt --all -- --check
+
+      - name: Test Android DeleteSurrounding and paragraph-start Backspace
+        working-directory: source/wordcraft
+        run: |
+          set -Eeuo pipefail
+          cargo test -p wordcraft-ui-egui --lib delete_surrounding_at_a_paragraph_start_joins_it_with_the_one_above
 
       - name: Run Hebrew catalog and RTL regression tests
         working-directory: source/wordcraft
@@ -167,6 +175,15 @@ jobs:
           grep -F 'WordCraft mobile title bar: keep account and command search without desktop-only clusters.' source/wordcraft/crates/ui-egui/src/chrome.rs
           grep -F 'full.width() >= 560.0' source/wordcraft/crates/ui-egui/src/canvas.rs
           echo "Verified WordCraft voice input, user-controlled rotation, responsive mobile chrome, status row and rulers."
+
+      - name: Verify Android DeleteSurrounding bridge
+        run: |
+          set -Eeuo pipefail
+          grep -F 'onImeDeleteSurrounding(int beforeChars, int afterChars)' templates/android/SafActivity.java
+          grep -F 'deleteSurroundingTextInCodePoints' templates/android/SafActivity.java
+          grep -F 'parse_android_delete_surrounding' source/wordcraft/vendor/egui-winit/src/lib.rs
+          grep -F 'egui::ImeEvent::DeleteSurrounding' source/wordcraft/vendor/egui-winit/src/lib.rs
+          grep -F 'delete_surrounding_at_a_paragraph_start_joins_it_with_the_one_above' source/wordcraft/crates/ui-egui/src/keys/tests.rs
 
       - name: Verify APK, package id and signing certificate
         id: verify_apk
