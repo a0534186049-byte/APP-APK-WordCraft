@@ -209,232 +209,246 @@ rtl_text = rtl_text.replace(
 )
 rtl.write_text(rtl_text)
 
-# WordCraft's desktop status row has a full zoom slider and optional indicators.
-# On narrow portrait screens, keep the primary controls visible and move the rest to a menu.
-chrome = src / "crates/ui-egui/src/chrome.rs"
-chrome_text = chrome.read_text()
-compact_marker = "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens."
-compact_guard = """            if !app.has_document() {
-                return;
-            }
-            let rtl = crate::rtl::on();"""
-compact_replacement = """            if !app.has_document() {
-                return;
-            }
-""" + r'''            // WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens.
-            if ui.available_width() < 560.0 {
-                let l = app.session.layout();
-                let page = if let Some(p) = app.canvas.viewed_page {
-                    p.min(l.pages.len().saturating_sub(1)) + 1
-                } else if app.session.selects_whole_story() {
-                    app.session.page_hint.min(l.pages.len().saturating_sub(1)) + 1
-                } else {
-                    l.caret_on(&app.session.sel.focus, app.session.page_hint)
-                        .map(|c| c.page + 1)
-                        .unwrap_or(1)
-                };
-                let unit = app.ui.status_count;
-                let counts = app.cached_status_counts();
-                let wtxt = if app.session.sel.is_collapsed() || crate::objects::selected(app).is_some() {
-                    status_count_text(unit, counts.in_unit(unit), None)
-                } else {
-                    let selected = crate::count_in_unit(&app.session.selected_text(), unit);
-                    status_count_text(unit, counts.in_unit(unit), Some(selected))
-                };
-                let reading = app.session.view.read_mode;
-                let zoom = (if reading {
-                    app.session.view.read_zoom
-                } else {
-                    app.canvas.scale / crate::canvas::PX_PER_PT
-                } * 100.0)
-                    .round();
-                crate::rtl::root(ui, |ui| {
-                    ui.horizontal_centered(|ui| {
-                        ui.spacing_mut().item_spacing = vec2(5.0, 0.0);
-                        if ui.small_button(format!("{page}/{}", l.pages.len())).clicked() {
-                            let _ = app.run("ui.dialog", json!({"name": "goto"}));
-                        }
-                        if ui.small_button(wtxt.as_str()).clicked() {
-                            let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
-                        }
-                        if ui.small_button(format!("{zoom:.0}%")).clicked() && !reading {
-                            let _ = app.run("ui.dialog", json!({"name": "zoom"}));
-                        }
-                        ui.menu_button("⋯", |ui| {
-                            ui.set_min_width(210.0);
-                            if reading {
-                                if ui.button(tl!("Zoom In")).clicked() {
-                                    let _ = app.run(
-                                        "view.readTextSize",
-                                        json!({"value": (zoom + 10.0).min(150.0)}),
-                                    );
-                                    ui.close();
-                                }
-                                if ui.button(tl!("Zoom Out")).clicked() {
-                                    let _ = app.run(
-                                        "view.readTextSize",
-                                        json!({"value": (zoom - 10.0).max(75.0)}),
-                                    );
-                                    ui.close();
-                                }
-                            } else {
-                                if ui.button(tl!("Zoom In")).clicked() {
-                                    let _ = app.run("view.zoomIn", json!({}));
-                                    ui.close();
-                                }
-                                if ui.button(tl!("Zoom Out")).clicked() {
-                                    let _ = app.run("view.zoomOut", json!({}));
-                                    ui.close();
-                                }
+# The newer upstream Chrome is already split into responsive status/title modules. Its
+# measured Fit steps handle narrow windows, so keep those implementations instead of applying
+# the legacy one-file mobile patch. Older upstream revisions still receive that patch.
+if "pub(crate) mod status_bar;" in chrome_text and "pub(crate) mod title_bar;" in chrome_text:
+    print("Upstream responsive status/title bars already provide compact mobile layouts.")
+else:
+    # WordCraft's desktop status row has a full zoom slider and optional indicators.
+    # On narrow portrait screens, keep the primary controls visible and move the rest to a menu.
+    chrome = src / "crates/ui-egui/src/chrome.rs"
+    chrome_text = chrome.read_text()
+    compact_marker = "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens."
+    compact_guard = """            if !app.has_document() {
+                    return;
+                }
+                let rtl = crate::rtl::on();"""
+    compact_replacement = """            if !app.has_document() {
+                    return;
+                }
+    """ + r'''            // WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens.
+                if ui.available_width() < 560.0 {
+                    let l = app.session.layout();
+                    let page = if let Some(p) = app.canvas.viewed_page {
+                        p.min(l.pages.len().saturating_sub(1)) + 1
+                    } else if app.session.selects_whole_story() {
+                        app.session.page_hint.min(l.pages.len().saturating_sub(1)) + 1
+                    } else {
+                        l.caret_on(&app.session.sel.focus, app.session.page_hint)
+                            .map(|c| c.page + 1)
+                            .unwrap_or(1)
+                    };
+                    let unit = app.ui.status_count;
+                    let counts = app.cached_status_counts();
+                    let wtxt = if app.session.sel.is_collapsed() || crate::objects::selected(app).is_some() {
+                        status_count_text(unit, counts.in_unit(unit), None)
+                    } else {
+                        let selected = crate::count_in_unit(&app.session.selected_text(), unit);
+                        status_count_text(unit, counts.in_unit(unit), Some(selected))
+                    };
+                    let reading = app.session.view.read_mode;
+                    let zoom = (if reading {
+                        app.session.view.read_zoom
+                    } else {
+                        app.canvas.scale / crate::canvas::PX_PER_PT
+                    } * 100.0)
+                        .round();
+                    crate::rtl::root(ui, |ui| {
+                        ui.horizontal_centered(|ui| {
+                            ui.spacing_mut().item_spacing = vec2(5.0, 0.0);
+                            if ui.small_button(format!("{page}/{}", l.pages.len())).clicked() {
+                                let _ = app.run("ui.dialog", json!({"name": "goto"}));
                             }
-                            if ui.button(tl!("Word Count")).clicked() {
+                            if ui.small_button(wtxt.as_str()).clicked() {
                                 let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
-                                ui.close();
                             }
-                            ui.separator();
-                            for c in crate::StatusCount::ALL {
-                                if ui
-                                    .selectable_label(app.ui.status_count == c, tl!(c.label()))
-                                    .clicked()
-                                {
-                                    let _ = app.run("ui.statusCount", json!({"value": c.code()}));
+                            if ui.small_button(format!("{zoom:.0}%")).clicked() && !reading {
+                                let _ = app.run("ui.dialog", json!({"name": "zoom"}));
+                            }
+                            ui.menu_button("⋯", |ui| {
+                                ui.set_min_width(210.0);
+                                if reading {
+                                    if ui.button(tl!("Zoom In")).clicked() {
+                                        let _ = app.run(
+                                            "view.readTextSize",
+                                            json!({"value": (zoom + 10.0).min(150.0)}),
+                                        );
+                                        ui.close();
+                                    }
+                                    if ui.button(tl!("Zoom Out")).clicked() {
+                                        let _ = app.run(
+                                            "view.readTextSize",
+                                            json!({"value": (zoom - 10.0).max(75.0)}),
+                                        );
+                                        ui.close();
+                                    }
+                                } else {
+                                    if ui.button(tl!("Zoom In")).clicked() {
+                                        let _ = app.run("view.zoomIn", json!({}));
+                                        ui.close();
+                                    }
+                                    if ui.button(tl!("Zoom Out")).clicked() {
+                                        let _ = app.run("view.zoomOut", json!({}));
+                                        ui.close();
+                                    }
+                                }
+                                if ui.button(tl!("Word Count")).clicked() {
+                                    let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
                                     ui.close();
                                 }
-                            }
-                            ui.separator();
-                            ui.menu_button(tl!("Language"), |ui| {
-                                ui.set_min_width(220.0);
-                                crate::rtl::root(ui, |ui| crate::ribbon::language_menu(ui, app));
+                                ui.separator();
+                                for c in crate::StatusCount::ALL {
+                                    if ui
+                                        .selectable_label(app.ui.status_count == c, tl!(c.label()))
+                                        .clicked()
+                                    {
+                                        let _ = app.run("ui.statusCount", json!({"value": c.code()}));
+                                        ui.close();
+                                    }
+                                }
+                                ui.separator();
+                                ui.menu_button(tl!("Language"), |ui| {
+                                    ui.set_min_width(220.0);
+                                    crate::rtl::root(ui, |ui| crate::ribbon::language_menu(ui, app));
+                                });
+                                if ui.button(tl!("Web Layout")).clicked() {
+                                    let _ = app.run("view.webLayout", json!({}));
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Print Layout")).clicked() {
+                                    let _ = app.run("view.printLayout", json!({}));
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Read Mode")).clicked() {
+                                    let _ = app.run("view.readMode", json!({}));
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Focus")).clicked() {
+                                    let _ = app.run("view.focus", json!({}));
+                                    ui.close();
+                                }
                             });
-                            if ui.button(tl!("Web Layout")).clicked() {
-                                let _ = app.run("view.webLayout", json!({}));
-                                ui.close();
-                            }
-                            if ui.button(tl!("Print Layout")).clicked() {
-                                let _ = app.run("view.printLayout", json!({}));
-                                ui.close();
-                            }
-                            if ui.button(tl!("Read Mode")).clicked() {
-                                let _ = app.run("view.readMode", json!({}));
-                                ui.close();
-                            }
-                            if ui.button(tl!("Focus")).clicked() {
-                                let _ = app.run("view.focus", json!({}));
-                                ui.close();
-                            }
                         });
                     });
-                });
-                return;
-            }
-''' + """            let rtl = crate::rtl::on();"""
-if compact_marker not in chrome_text:
-    if chrome_text.count(compact_guard) != 1:
-        raise SystemExit("Could not find the unique WordCraft status bar insertion point.")
-    chrome_text = chrome_text.replace(compact_guard, compact_replacement, 1)
+                    return;
+                }
+    ''' + """            let rtl = crate::rtl::on();"""
+    if compact_marker not in chrome_text:
+        if chrome_text.count(compact_guard) != 1:
+            raise SystemExit("Could not find the unique WordCraft status bar insertion point.")
+        chrome_text = chrome_text.replace(compact_guard, compact_replacement, 1)
+        chrome.write_text(chrome_text)
+    elif chrome_text.count(compact_marker) != 1:
+        raise SystemExit("WordCraft compact status row marker is ambiguous.")
+    
+    # Compact title chrome on phone-width screens. The normal desktop controls remain unchanged.
+    title_marker = "// WordCraft mobile title bar: keep account and command search without desktop-only clusters."
+    title_anchor = """            let full = ui.max_rect();
+                // Drag the window by the title bar (integrated title bar on macOS)."""
+    title_replacement = """            let full = ui.max_rect();
+                // WordCraft mobile title bar: keep account and command search without desktop-only clusters.
+                let compact = full.width() < 560.0;
+                // Drag the window by the title bar (integrated title bar on macOS)."""
+    if title_marker not in chrome_text:
+        if chrome_text.count(title_anchor) != 1:
+            raise SystemExit("Could not find the unique WordCraft title-bar insertion point.")
+        chrome_text = chrome_text.replace(title_anchor, title_replacement, 1)
+    elif chrome_text.count(title_marker) != 1:
+        raise SystemExit("WordCraft mobile title-bar marker is ambiguous.")
+    
+    # On mobile, keep the AutoSave control but omit the optional desktop Quick Access cluster.
+    quick_access_anchor = "                    if app.ui.quick_access_toolbar {"
+    quick_access_mobile = "                    if !compact && app.ui.quick_access_toolbar {"
+    if quick_access_mobile not in chrome_text:
+        if chrome_text.count(quick_access_anchor) != 1:
+            raise SystemExit("Could not find the unique Quick Access title-bar control.")
+        chrome_text = chrome_text.replace(quick_access_anchor, quick_access_mobile, 1)
+    
+    discord_anchor = "                        if app.ui.show_discord {"
+    if "                        if !compact && app.ui.show_discord {" not in chrome_text:
+        if chrome_text.count(discord_anchor) != 1:
+            raise SystemExit("Could not find the unique Discord title-bar control.")
+        chrome_text = chrome_text.replace(discord_anchor, "                        if !compact && app.ui.show_discord {", 1)
+    
+    # Upstream WordCraft has a responsive Search box; its width argument may change names
+    # between releases. Locate the call structurally rather than matching a single hard-coded
+    # source line, then use the same calculated width except on phone-width layouts.
+    search_signature = re.search(
+        r"(?m)^[ \t]*fn search_box\(app:\s*&mut WordApp,\s*ui:\s*&mut Ui,\s*control_h:\s*f32,\s*\w+:\s*f32\)\s*\{",
+        chrome_text,
+    )
+    if search_signature:
+        search_call = re.compile(
+            r"(?m)^(?P<indent>[ \t]*)search_box\(app,\s*ui,\s*control_h,\s*(?P<width>[^;\n]+)\);[ \t]*$"
+        )
+        calls = list(search_call.finditer(chrome_text))
+        if len(calls) != 1:
+            candidates = [
+                line.strip() for line in chrome_text.splitlines()
+                if "search_box(app" in line
+            ]
+            raise SystemExit(
+                "Expected one responsive title-bar Search call; found "
+                f"{len(calls)}. Current calls: {candidates}"
+            )
+        call = calls[0]
+        original_width = call.group("width").strip()
+        compact_call = (
+            call.group("indent")
+            + "search_box(app, ui, control_h, "
+            + f"if compact {{ control_h }} else {{ {original_width} }}"
+            + ");"
+        )
+        chrome_text = chrome_text[:call.start()] + compact_call + chrome_text[call.end():]
+    else:
+        # Compatibility with the previous builder-supported variant, whose search_box accepted
+        # a compact boolean rather than a calculated width.
+        legacy_signature = (
+            "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool) {"
+        )
+        legacy_call = "                        search_box(app, ui, control_h);"
+        if legacy_signature not in chrome_text or chrome_text.count(legacy_call) != 1:
+            candidates = [
+                line.strip() for line in chrome_text.splitlines()
+                if "search_box(app" in line
+            ]
+            raise SystemExit(
+                "Unsupported WordCraft Search API; refusing an unsafe patch. "
+                f"Current calls: {candidates}"
+            )
+        chrome_text = chrome_text.replace(
+            legacy_call,
+            "                        search_box(app, ui, control_h, compact);",
+            1,
+        )
+    
     chrome.write_text(chrome_text)
-elif chrome_text.count(compact_marker) != 1:
-    raise SystemExit("WordCraft compact status row marker is ambiguous.")
-
-# Compact title chrome on phone-width screens. The normal desktop controls remain unchanged.
-title_marker = "// WordCraft mobile title bar: keep account and command search without desktop-only clusters."
-title_anchor = """            let full = ui.max_rect();
-            // Drag the window by the title bar (integrated title bar on macOS)."""
-title_replacement = """            let full = ui.max_rect();
-            // WordCraft mobile title bar: keep account and command search without desktop-only clusters.
-            let compact = full.width() < 560.0;
-            // Drag the window by the title bar (integrated title bar on macOS)."""
-if title_marker not in chrome_text:
-    if chrome_text.count(title_anchor) != 1:
-        raise SystemExit("Could not find the unique WordCraft title-bar insertion point.")
-    chrome_text = chrome_text.replace(title_anchor, title_replacement, 1)
-elif chrome_text.count(title_marker) != 1:
-    raise SystemExit("WordCraft mobile title-bar marker is ambiguous.")
-
-# On mobile, keep the AutoSave control but omit the optional desktop Quick Access cluster.
-quick_access_anchor = "                    if app.ui.quick_access_toolbar {"
-quick_access_mobile = "                    if !compact && app.ui.quick_access_toolbar {"
-if quick_access_mobile not in chrome_text:
-    if chrome_text.count(quick_access_anchor) != 1:
-        raise SystemExit("Could not find the unique Quick Access title-bar control.")
-    chrome_text = chrome_text.replace(quick_access_anchor, quick_access_mobile, 1)
-
-discord_anchor = "                        if app.ui.show_discord {"
-if "                        if !compact && app.ui.show_discord {" not in chrome_text:
-    if chrome_text.count(discord_anchor) != 1:
-        raise SystemExit("Could not find the unique Discord title-bar control.")
-    chrome_text = chrome_text.replace(discord_anchor, "                        if !compact && app.ui.show_discord {", 1)
-
-# Upstream WordCraft has a responsive Search box; its width argument may change names
-# between releases. Locate the call structurally rather than matching a single hard-coded
-# source line, then use the same calculated width except on phone-width layouts.
-search_signature = re.search(
-    r"(?m)^[ \t]*fn search_box\(app:\s*&mut WordApp,\s*ui:\s*&mut Ui,\s*control_h:\s*f32,\s*\w+:\s*f32\)\s*\{",
-    chrome_text,
-)
-if search_signature:
-    search_call = re.compile(
-        r"(?m)^(?P<indent>[ \t]*)search_box\(app,\s*ui,\s*control_h,\s*(?P<width>[^;\n]+)\);[ \t]*$"
-    )
-    calls = list(search_call.finditer(chrome_text))
-    if len(calls) != 1:
-        candidates = [
-            line.strip() for line in chrome_text.splitlines()
-            if "search_box(app" in line
-        ]
-        raise SystemExit(
-            "Expected one responsive title-bar Search call; found "
-            f"{len(calls)}. Current calls: {candidates}"
-        )
-    call = calls[0]
-    original_width = call.group("width").strip()
-    compact_call = (
-        call.group("indent")
-        + "search_box(app, ui, control_h, "
-        + f"if compact {{ control_h }} else {{ {original_width} }}"
-        + ");"
-    )
-    chrome_text = chrome_text[:call.start()] + compact_call + chrome_text[call.end():]
-else:
-    # Compatibility with the previous builder-supported variant, whose search_box accepted
-    # a compact boolean rather than a calculated width.
-    legacy_signature = (
-        "fn search_box(app: &mut WordApp, ui: &mut Ui, control_h: f32, compact: bool) {"
-    )
-    legacy_call = "                        search_box(app, ui, control_h);"
-    if legacy_signature not in chrome_text or chrome_text.count(legacy_call) != 1:
-        candidates = [
-            line.strip() for line in chrome_text.splitlines()
-            if "search_box(app" in line
-        ]
-        raise SystemExit(
-            "Unsupported WordCraft Search API; refusing an unsafe patch. "
-            f"Current calls: {candidates}"
-        )
-    chrome_text = chrome_text.replace(
-        legacy_call,
-        "                        search_box(app, ui, control_h, compact);",
-        1,
-    )
-
-chrome.write_text(chrome_text)
-
-if chrome_text.count("let compact = full.width() < 560.0;") != 1:
-    raise SystemExit("The compact WordCraft title-bar breakpoint was not installed exactly once.")
-if chrome_text.count("if !compact && app.ui.quick_access_toolbar") != 1:
-    raise SystemExit("The compact WordCraft Quick Access visibility guard is missing.")
-
+    
+    if chrome_text.count("let compact = full.width() < 560.0;") != 1:
+        raise SystemExit("The compact WordCraft title-bar breakpoint was not installed exactly once.")
+    if chrome_text.count("if !compact && app.ui.quick_access_toolbar") != 1:
+        raise SystemExit("The compact WordCraft Quick Access visibility guard is missing.")
 # Measurement rulers take a fixed strip; hide them automatically on phone-width screens.
 # The user's saved View > Ruler preference still applies again on wider displays.
 canvas = src / "crates/ui-egui/src/canvas.rs"
 canvas_text = canvas.read_text()
 ruler_marker = "        // WordCraft hides measurement rulers automatically on narrow screens."
-ruler_anchor = "    let show_ruler = app.session.view.ruler\n"
-ruler_replacement = ruler_anchor + ruler_marker + "\n        && full.width() >= 560.0\n"
+if "let show_rulers = app.session.view.ruler" in canvas_text:
+    ruler_anchor = "    let show_rulers = app.session.view.ruler\\n"
+elif "let show_ruler = app.session.view.ruler" in canvas_text:
+    ruler_anchor = "    let show_ruler = app.session.view.ruler\\n"
+else:
+    ruler_anchor = None
+ruler_replacement = ruler_anchor + ruler_marker + "\\n        && full.width() >= 560.0\\n" if ruler_anchor else None
 if ruler_marker not in canvas_text:
-    if canvas_text.count(ruler_anchor) != 1:
+    if ruler_anchor and canvas_text.count(ruler_anchor) == 1:
+        canvas_text = canvas_text.replace(ruler_anchor, ruler_replacement, 1)
+    elif "PageView::new" in canvas_text and ".rulers(show_rulers)" in canvas_text:
+        # New upstream paged-canvas layout delegates ruler painting and sizing to PageView.
+        pass
+    else:
         raise SystemExit("Could not find the unique ruler visibility calculation.")
-    canvas_text = canvas_text.replace(ruler_anchor, ruler_replacement, 1)
 elif canvas_text.count(ruler_marker) != 1:
     raise SystemExit("WordCraft mobile ruler marker is ambiguous.")
 canvas.write_text(canvas_text)
