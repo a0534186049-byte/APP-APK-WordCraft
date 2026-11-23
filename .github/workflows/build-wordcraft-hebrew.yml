@@ -170,9 +170,15 @@ jobs:
           grep -F 'orientation = "user"' "$MANIFEST"
           grep -F 'TYPE_TEXT_FLAG_AUTO_CORRECT' templates/android/SafActivity.java
           grep -F 'TYPE_TEXT_FLAG_MULTI_LINE' templates/android/SafActivity.java
-          grep -F 'if ui.available_width() < 560.0' source/wordcraft/crates/ui-egui/src/chrome.rs
+          CHROME="source/wordcraft/crates/ui-egui/src/chrome.rs"
+          if grep -Fq 'pub(crate) mod status_bar;' "$CHROME" && grep -Fq 'pub(crate) mod title_bar;' "$CHROME"; then
+            grep -F 'status_fit.step()' source/wordcraft/crates/ui-egui/src/chrome/status_bar.rs
+            grep -F 'title_fit.step()' source/wordcraft/crates/ui-egui/src/chrome/title_bar.rs
+          else
+            grep -F 'if ui.available_width() < 560.0' "$CHROME"
+            grep -F 'WordCraft mobile title bar: keep account and command search without desktop-only clusters.' "$CHROME"
+          fi
           grep -F 'wordcraft_mobile_scale_v1' lib/build-common.sh
-          grep -F 'WordCraft mobile title bar: keep account and command search without desktop-only clusters.' source/wordcraft/crates/ui-egui/src/chrome.rs
           grep -F 'full.width() >= 560.0' source/wordcraft/crates/ui-egui/src/canvas.rs
           echo "Verified WordCraft voice input, user-controlled rotation, responsive mobile chrome, status row and rulers."
 
