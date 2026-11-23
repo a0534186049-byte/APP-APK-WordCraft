@@ -598,7 +598,12 @@ tests = (src / "crates/ui-egui/src/i18n/tests.rs").read_text()
 engine = (src / "crates/engine/src/tests/typing.rs").read_text()
 chrome = (src / "crates/ui-egui/src/chrome.rs").read_text()
 assert 'const RTL_LANGUAGES: [&str; 2] = ["ar", "he"];' in i18n
-assert "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens." in chrome
+modern_chrome = "pub(crate) mod status_bar;" in chrome and "pub(crate) mod title_bar;" in chrome
+if modern_chrome:
+    assert "pub(crate) mod status_bar;" in chrome
+    assert "pub(crate) mod title_bar;" in chrome
+else:
+    assert "// WordCraft mobile status row: fit the page/count/zoom essentials on portrait screens." in chrome
 assert 'code: "he", prefer_hans: false, editing_lang: Some("he-IL")' in i18n
 assert "hebrew_locales_and_saved_preference_work_without_changing_the_document" in tests
 assert 'let s = typed("שלום");' in engine
