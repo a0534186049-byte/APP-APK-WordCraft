@@ -209,6 +209,11 @@ rtl_text = rtl_text.replace(
 )
 rtl.write_text(rtl_text)
 
+chrome = src / "crates/ui-egui/src/chrome.rs"
+if not chrome.is_file():
+    raise SystemExit(f"Required WordCraft Chrome source is missing: {chrome}")
+chrome_text = chrome.read_text()
+
 # The newer upstream Chrome is already split into responsive status/title modules. Its
 # measured Fit steps handle narrow windows, so keep those implementations instead of applying
 # the legacy one-file mobile patch. Older upstream revisions still receive that patch.
